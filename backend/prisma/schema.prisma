@@ -1,0 +1,118 @@
+// Prisma schema for Momentum / Himma backend
+// Supports Supabase PostgreSQL with RLS and custom triggers
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum ActivitySource {
+  manual
+  import
+  extension
+
+  @@map("activity_source")
+}
+
+enum ActivityType {
+  article
+  video
+  course
+  repository
+  other
+
+  @@map("activity_type")
+}
+
+enum AlignmentScore {
+  on_track        @map("on track")
+  drifting        @map("drifting")
+  no_stated_goal  @map("no stated goal yet")
+
+  @@map("alignment_score")
+}
+
+model User {
+  id        String   @id @db.Uuid
+  email     String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  profile         SkillsGoalsProfile?
+  activityEntries ActivityEntry[]
+  noteEntries     NoteEntry[]
+  insightRuns     InsightRun[]
+
+  @@map("users")
+}
+
+model SkillsGoalsProfile {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @unique @map("user_id") @db.Uuid
+  currentSkills String[] @default([]) @map("current_skills")
+  interests     String[] @default([])
+  targetPath    String?  @map("target_path") @db.Text
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("skills_goals_profile")
+}
+
+model ActivityEntry {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String         @map("user_id") @db.Uuid
+  source     ActivitySource
+  title      String         @db.Text
+  url        String?        @db.Text
+  type       ActivityType
+  tags       String[]       @default([])
+  consumedAt DateTime       @default(now()) @map("consumed_at") @db.Timestamptz
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notesLinked NoteEntry[]
+
+  @@index([userId])
+  @@index([userId, consumedAt(sort: Desc)])
+  @@map("activity_entries")
+}
+
+model NoteEntry {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  text             String   @db.Text
+  tags             String[] @default([])
+  linkedActivityId String?  @map("linked_activity_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedActivity ActivityEntry? @relation(fields: [linkedActivityId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([linkedActivityId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("note_entries")
+}
+
+model InsightRun {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String         @map("user_id") @db.Uuid
+  timestamp        DateTime       @default(now()) @db.Timestamptz
+  inputWindow      Json           @default("{}") @map("input_window")
+  skillSummary     Json           @default("{}") @map("skill_summary")
+  directionSummary Json           @default("{}") @map("direction_summary")
+  alignmentScore   AlignmentScore @map("alignment_score")
+  citations        Json           @default("[]")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, timestamp(sort: Desc)])
+  @@map("insight_runs")
+}
