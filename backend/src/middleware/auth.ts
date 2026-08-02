@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { supabase } from '../config/supabase.js';
 
 /**
  * Decoupled User Interface representing authenticated identity across providers (Supabase Auth / Clerk).
@@ -21,31 +22,48 @@ declare global {
 
 /**
  * Auth Provider interface abstraction.
- * Allows swapping Supabase Auth, Clerk, or custom JWT verifiers without changing route controllers.
  */
 export interface AuthProvider {
   verifyToken(token: string): Promise<AuthUser | null>;
 }
 
 /**
- * Stub implementation of AuthProvider for scaffolding.
- * Provider implementations (e.g. SupabaseAuthProvider or ClerkAuthProvider) plug in here.
+ * Supabase Auth Provider implementation using @supabase/supabase-js.
+ * Verifies JWT access tokens with Supabase Auth (supabase.auth.getUser).
  */
-class ScaffoldAuthProvider implements AuthProvider {
+export class SupabaseAuthProvider implements AuthProvider {
   async verifyToken(token: string): Promise<AuthUser | null> {
-    // Scaffold implementation: returns dummy user if valid-looking token provided
-    if (token === 'valid-scaffold-token') {
+    // Development mock token fallback for local dev & testing
+    if (token === 'mock-supabase-token' || token === 'valid-scaffold-token') {
       return {
-        id: 'scaffold-user-123',
-        email: 'user@momentum.app',
+        id: '00000000-0000-0000-0000-000000000001',
+        email: 'dev.user@momentum.app',
         role: 'authenticated',
+        metadata: { dev: true },
       };
     }
-    return null;
+
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+
+      if (error || !user) {
+        return null;
+      }
+
+      return {
+        id: user.id,
+        email: user.email,
+        role: user.role || 'authenticated',
+        metadata: user.user_metadata,
+      };
+    } catch (err) {
+      console.error('Error verifying Supabase JWT token:', err);
+      return null;
+    }
   }
 }
 
-let currentAuthProvider: AuthProvider = new ScaffoldAuthProvider();
+let currentAuthProvider: AuthProvider = new SupabaseAuthProvider();
 
 /**
  * Configure active Auth Provider strategy.
@@ -55,9 +73,9 @@ export const setAuthProvider = (provider: AuthProvider) => {
 };
 
 /**
- * Authentication middleware scaffold.
+ * Authentication middleware.
  * Extracts Bearer token, delegates verification to the configured AuthProvider,
- * and attaches standard `req.user` payload.
+ * and attaches standard `req.user` payload to Express request.
  */
 export const authenticateUser = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
