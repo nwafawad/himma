@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../config/supabase.js';
+import { prisma } from '../config/prisma.js';
 
 /**
  * Decoupled User Interface representing authenticated identity across providers (Supabase Auth / Clerk).
@@ -75,7 +76,7 @@ export const setAuthProvider = (provider: AuthProvider) => {
 /**
  * Authentication middleware (requireAuth).
  * Extracts Bearer token, delegates verification to the configured AuthProvider,
- * and attaches standard `req.user` payload to Express request.
+ * auto-provisions user in public.users, and attaches standard `req.user` payload.
  */
 export const authenticateUser = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
@@ -96,6 +97,17 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
       return res.status(401).json({
         error: 'Unauthorized',
         message: 'Invalid, expired, or revoked authentication token.',
+      });
+    }
+
+    // Auto-provision public.users record if missing
+    if (user.id && user.email) {
+      await prisma.user.upsert({
+        where: { id: user.id },
+        create: { id: user.id, email: user.email },
+        update: { email: user.email },
+      }).catch((err) => {
+        console.warn(`User auto-provisioning warning for ${user.id}:`, err.message);
       });
     }
 
