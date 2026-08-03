@@ -7,6 +7,7 @@ import insightsRoutes from './insights.routes.js';
 import userRoutes from './user.routes.js';
 import extensionRoutes from './extension.routes.js';
 import integrationsRoutes from './integrations.routes.js';
+import importRoutes from './import.routes.js';
 
 const router = Router();
 
@@ -18,6 +19,7 @@ router.use('/profile', profileRoutes);
 router.use('/notes', notesRoutes);
 router.use('/activity', activitiesRoutes);
 router.use('/activities', activitiesRoutes);
+router.use('/import', importRoutes);
 router.use('/insights', insightsRoutes);
 router.use('/user', userRoutes);
 

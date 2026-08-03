@@ -2,11 +2,13 @@ import { prisma } from '../config/prisma.js';
 import { supabaseAdmin } from '../config/supabase.js';
 
 export const exportUserDataBundle = async (userId: string) => {
-  const [profile, activities, notes, insights] = await Promise.all([
+  const [profile, activities, notes, insights, candidates, digests] = await Promise.all([
     prisma.skillsGoalsProfile.findUnique({ where: { userId } }),
     prisma.activityEntry.findMany({ where: { userId }, orderBy: { consumedAt: 'desc' } }),
     prisma.noteEntry.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
     prisma.insightRun.findMany({ where: { userId }, orderBy: { timestamp: 'desc' } }),
+    prisma.importCandidate.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
+    prisma.profileDigest.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
   ]);
 
   return {
@@ -16,6 +18,8 @@ export const exportUserDataBundle = async (userId: string) => {
     activities,
     notes,
     insights,
+    importCandidates: candidates,
+    profileDigests: digests,
   };
 };
 

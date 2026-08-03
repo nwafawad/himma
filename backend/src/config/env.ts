@@ -17,6 +17,11 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().default(''),
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().default('gemini-2.0-flash'),
+  INSIGHT_BATCH_CRON: z.string().default('0 0 * * 0'),
+  MIN_INSIGHT_ACTIVITIES: z.string().default('3').transform((val) => parseInt(val, 10)),
+  MIN_INSIGHT_NOTES: z.string().default('1').transform((val) => parseInt(val, 10)),
+  MAX_MONTHLY_INSIGHT_RUNS_PER_USER: z.string().default('10').transform((val) => parseInt(val, 10)),
+  MAX_TOKENS_PER_RUN: z.string().default('8000').transform((val) => parseInt(val, 10)),
 });
 
 const parseEnv = () => {

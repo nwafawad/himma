@@ -43,9 +43,23 @@ export const generateAndSaveInsightRun = async (userId: string, timeframeDays = 
   const pipelineResult = await runAiInsightPipeline(userId, timeframeDays);
 
   if ('skipped' in pipelineResult && pipelineResult.skipped) {
+    const skippedRun = await prisma.insightRun.create({
+      data: {
+        userId,
+        status: 'skipped',
+        statusReason: pipelineResult.reason,
+        alignmentScore: 'no_stated_goal',
+        inputWindow: { timeframeDays },
+        skillSummary: {},
+        directionSummary: {},
+        citations: [],
+      },
+    });
+
     return {
       skipped: true,
       reason: pipelineResult.reason,
+      data: skippedRun,
     };
   }
 
@@ -54,6 +68,8 @@ export const generateAndSaveInsightRun = async (userId: string, timeframeDays = 
   const savedRun = await prisma.insightRun.create({
     data: {
       userId,
+      status: 'completed',
+      tokensUsed: result.telemetry?.totalTokens || 0,
       inputWindow: result.inputWindow,
       skillSummary: result.skillSummary,
       directionSummary: result.directionSummary,

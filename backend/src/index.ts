@@ -1,10 +1,12 @@
 import app from './app.js';
 import { env } from './config/env.js';
 import { pool } from './db/index.js';
+import { initScheduler } from './services/scheduler.service.js';
 
 const server = app.listen(env.PORT, () => {
   console.log(`🚀 Momentum Backend Service running on port ${env.PORT} [${env.NODE_ENV}]`);
   console.log(`🏥 Health Check available at http://localhost:${env.PORT}/health`);
+  initScheduler();
 });
 
 // Graceful shutdown handling for container management (Render / Railway / Docker)

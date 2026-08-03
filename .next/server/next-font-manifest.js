@@ -1,0 +1,1 @@
+self.__NEXT_FONT_MANIFEST='{"pages":{},"app":{"/Users/nawafawad/Desktop/himma/app/layout":["static/media/e6099e249fd938cc-s.p.woff2","static/media/9cc5b37ab1350db7-s.p.woff2","static/media/e4af272ccee01ff0-s.p.woff2"]},"appUsingSizeAdjust":true,"pagesUsingSizeAdjust":false}';

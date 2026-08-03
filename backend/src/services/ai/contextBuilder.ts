@@ -1,4 +1,6 @@
 import { prisma } from '../../config/prisma.js';
+import { env } from '../../config/env.js';
+import { getOrCreateRollingDigest, RollingDigestSummary } from './digest.service.js';
 
 export interface UserContextResult {
   skipped: boolean;
@@ -6,11 +8,12 @@ export interface UserContextResult {
   profile: any;
   activities: any[];
   notes: any[];
+  digest: RollingDigestSummary | null;
   validUuids: Set<string>;
 }
 
 /**
- * Context Builder: Fetches logs & profile, checks thresholds, and trims token context.
+ * Context Builder: Fetches logs & profile, checks configurable thresholds, attaches rolling profile digest, and trims context.
  */
 export const buildUserContext = async (
   userId: string,
@@ -18,7 +21,7 @@ export const buildUserContext = async (
 ): Promise<UserContextResult> => {
   const cutoffDate = new Date(Date.now() - timeframeDays * 24 * 60 * 60 * 1000);
 
-  const [profile, activities, notes] = await Promise.all([
+  const [profile, activities, notes, digest] = await Promise.all([
     prisma.skillsGoalsProfile.findUnique({ where: { userId } }),
     prisma.activityEntry.findMany({
       where: { userId, consumedAt: { gte: cutoffDate } },
@@ -30,15 +33,20 @@ export const buildUserContext = async (
       orderBy: { createdAt: 'desc' },
       take: 100,
     }),
+    getOrCreateRollingDigest(userId, cutoffDate),
   ]);
 
-  if (activities.length === 0 && notes.length === 0) {
+  const minActivities = env.MIN_INSIGHT_ACTIVITIES;
+  const minNotes = env.MIN_INSIGHT_NOTES;
+
+  if (activities.length < minActivities && notes.length < minNotes) {
     return {
       skipped: true,
-      reason: 'INSUFFICIENT_ACTIVITY_LOGS',
+      reason: `INSUFFICIENT_ACTIVITY_LOGS: User has ${activities.length} activities (min ${minActivities}) and ${notes.length} notes (min ${minNotes}) in recent ${timeframeDays}-day timeframe.`,
       profile,
-      activities: [],
-      notes: [],
+      activities,
+      notes,
+      digest,
       validUuids: new Set<string>(),
     };
   }
@@ -54,6 +62,7 @@ export const buildUserContext = async (
     profile,
     activities,
     notes,
+    digest,
     validUuids,
   };
 };

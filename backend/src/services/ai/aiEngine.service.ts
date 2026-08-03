@@ -1,16 +1,17 @@
 import { AlignmentScore } from '@prisma/client';
 import { env } from '../../config/env.js';
+import { prisma } from '../../config/prisma.js';
 import { buildUserContext } from './contextBuilder.js';
 import { validateCitations } from './citationValidator.js';
 import { generateLocalHeuristicInsight, GeneratedInsightPayload } from './heuristicEngine.js';
 import { generateGeminiContent, aiClient } from './gemini.client.js';
 import { createTelemetry, TelemetryData } from './telemetry.js';
 
-export { TelemetryData, GeneratedInsightPayload };
+export type { TelemetryData, GeneratedInsightPayload };
 
 /**
  * Modular AI Insight Engine Pipeline:
- * Orchestrates Context Building -> Gemini LLM Invocation -> Citation Validation -> Retries / Quota Fallback -> Telemetry.
+ * Orchestrates Context Building -> Cost/Budget Guardrails -> Gemini LLM Invocation -> Citation Validation -> Retries / Quota Fallback -> Telemetry.
  */
 export const runAiInsightPipeline = async (
   userId: string,
@@ -23,7 +24,24 @@ export const runAiInsightPipeline = async (
     return { skipped: true, reason: context.reason! };
   }
 
-  const { profile, activities, notes, validUuids } = context;
+  // Cost & Budget Guardrail: Enforce monthly run limit per user
+  const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const runsThisMonth = await prisma.insightRun.count({
+    where: {
+      userId,
+      timestamp: { gte: startOfMonth },
+      status: 'completed',
+    },
+  });
+
+  if (runsThisMonth >= env.MAX_MONTHLY_INSIGHT_RUNS_PER_USER) {
+    return {
+      skipped: true,
+      reason: `MONTHLY_USAGE_CAP_EXCEEDED: Maximum monthly Insight Runs limit reached (${runsThisMonth}/${env.MAX_MONTHLY_INSIGHT_RUNS_PER_USER}).`,
+    };
+  }
+
+  const { profile, activities, notes, digest, validUuids } = context;
 
   // Fallback if no live Gemini API key is configured
   if (!aiClient || !env.GEMINI_API_KEY) {
@@ -32,6 +50,10 @@ export const runAiInsightPipeline = async (
   }
 
   const modelName = env.GEMINI_MODEL || 'gemini-2.0-flash';
+
+  const digestPrompt = digest
+    ? `\nHISTORICAL PROFILE DIGEST (older than 30 days):\n${JSON.stringify(digest)}\n`
+    : '';
 
   const systemPrompt = `You are a Principal AI Learning Analyst for Momentum.
 Analyze the user's recent learning activities, notes, and skills profile to produce a structured JSON report.
@@ -43,7 +65,7 @@ Do NOT invent fake UUIDs.
 AVAILABLE USER LOGS:
 Profile Target Path: ${profile?.targetPath || 'None specified'}
 Profile Current Skills: ${JSON.stringify(profile?.currentSkills || [])}
-
+${digestPrompt}
 ACTIVITIES (${activities.length} entries):
 ${activities.map((a) => `- ID: ${a.id} | Title: "${a.title}" | Type: ${a.type} | Tags: [${a.tags.join(', ')}]`).join('\n')}
 
