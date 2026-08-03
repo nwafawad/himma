@@ -3,6 +3,7 @@ import { Instrument_Serif, Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/navigation/Header";
 import QuickCaptureModal from "@/components/ui/QuickCaptureModal";
+import PageTransition from "@/components/ui/PageTransition";
 
 const serifFont = Instrument_Serif({
   weight: ["400"],
@@ -31,7 +32,7 @@ export default function RootLayout({
       <body className="bg-canvas text-charcoal min-h-screen flex flex-col font-sans selection:bg-[#A5B4FC]">
         <Header />
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {children}
+          <PageTransition>{children}</PageTransition>
         </main>
         <QuickCaptureModal />
       </body>

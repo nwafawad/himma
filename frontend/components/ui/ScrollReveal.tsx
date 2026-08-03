@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
+import { motion } from "framer-motion";
 
 interface ScrollRevealProps {
   children: React.ReactNode;
@@ -16,35 +16,34 @@ export default function ScrollReveal({
   delayMs = 0,
   direction = "up",
 }: ScrollRevealProps) {
-  const [ref, isVisible] = useIntersectionObserver<HTMLDivElement>({
-    threshold: 0.1,
-    triggerOnce: true,
-  });
-
-  const getDirectionClasses = () => {
+  const getDirectionVariants = () => {
     switch (direction) {
       case "up":
-        return isVisible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0";
+        return { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 } };
       case "down":
-        return isVisible ? "translate-y-0 opacity-100" : "-translate-y-6 opacity-0";
+        return { initial: { opacity: 0, y: -16 }, animate: { opacity: 1, y: 0 } };
       case "left":
-        return isVisible ? "translate-x-0 opacity-100" : "translate-x-6 opacity-0";
+        return { initial: { opacity: 0, x: 16 }, animate: { opacity: 1, x: 0 } };
       case "right":
-        return isVisible ? "translate-x-0 opacity-100" : "-translate-x-6 opacity-0";
+        return { initial: { opacity: 0, x: -16 }, animate: { opacity: 1, x: 0 } };
       case "none":
-        return isVisible ? "opacity-100" : "opacity-0";
+        return { initial: { opacity: 0 }, animate: { opacity: 1 } };
       default:
-        return isVisible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0";
+        return { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 } };
     }
   };
 
+  const variants = getDirectionVariants();
+
   return (
-    <div
-      ref={ref}
-      style={{ transitionDelay: `${delayMs}ms` }}
-      className={`transition-all duration-700 ease-out transform-gpu ${getDirectionClasses()} ${className}`}
+    <motion.div
+      initial={variants.initial}
+      whileInView={variants.animate}
+      viewport={{ once: true, margin: "0px 0px -40px 0px" }}
+      transition={{ duration: 0.5, delay: delayMs / 1000, ease: "easeOut" }}
+      className={className}
     >
       {children}
-    </div>
+    </motion.div>
   );
 }

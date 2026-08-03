@@ -6,7 +6,7 @@ export default function LandingPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)] py-12 text-center space-y-16">
       {/* Hero Headline */}
-      <ScrollReveal direction="up" delayMs={100} className="max-w-3xl space-y-6">
+      <ScrollReveal direction="up" delayMs={50} className="max-w-3xl space-y-6">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-card-muted border border-border-subtle text-xs text-charcoal-muted uppercase tracking-widest font-mono">
           <span>Editorial Learning Journal</span>
         </div>
@@ -38,7 +38,7 @@ export default function LandingPage() {
       {/* Feature Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl text-left pt-10 border-t border-border-light">
         {/* Feature 1 */}
-        <ScrollReveal direction="up" delayMs={200}>
+        <ScrollReveal direction="up" delayMs={150}>
           <div className="p-6 rounded-2xl bg-card border border-border-light space-y-3 shadow-sm hover:shadow transition-shadow h-full">
             <div className="w-10 h-10 rounded-full bg-badge-trackBg text-badge-trackText flex items-center justify-center">
               <Pen className="w-5 h-5" />
@@ -53,7 +53,7 @@ export default function LandingPage() {
         </ScrollReveal>
 
         {/* Feature 2 */}
-        <ScrollReveal direction="up" delayMs={350}>
+        <ScrollReveal direction="up" delayMs={250}>
           <div className="p-6 rounded-2xl bg-card border border-border-light space-y-3 shadow-sm hover:shadow transition-shadow h-full">
             <div className="w-10 h-10 rounded-full bg-card-muted text-charcoal flex items-center justify-center">
               <Book className="w-5 h-5" />
@@ -68,7 +68,7 @@ export default function LandingPage() {
         </ScrollReveal>
 
         {/* Feature 3 */}
-        <ScrollReveal direction="up" delayMs={500}>
+        <ScrollReveal direction="up" delayMs={350}>
           <div className="p-6 rounded-2xl bg-card border border-border-light space-y-3 shadow-sm hover:shadow transition-shadow h-full">
             <div className="w-10 h-10 rounded-full bg-[#2D2B55] text-indigo-300 flex items-center justify-center">
               <Lightbulb className="w-5 h-5" />

@@ -9,18 +9,28 @@ interface UseIntersectionObserverOptions extends IntersectionObserverInit {
 export function useIntersectionObserver<T extends HTMLElement = HTMLDivElement>(
   options: UseIntersectionObserverOptions = {}
 ): [RefObject<T>, boolean] {
-  const { threshold = 0.1, root = null, rootMargin = "0px", triggerOnce = true } = options;
+  const { threshold = 0.01, root = null, rootMargin = "50px", triggerOnce = true } = options;
   const targetRef = useRef<T>(null);
-  const [isIntersecting, setIsIntersecting] = useState(false);
+  // Default to true on initial render to prevent SSR layout collapse or invisible content
+  const [isIntersecting, setIsIntersecting] = useState(true);
 
   useEffect(() => {
     const element = targetRef.current;
     if (!element) return;
 
-    // Fallback if IntersectionObserver is not supported
     if (typeof IntersectionObserver === "undefined") {
       setIsIntersecting(true);
       return;
+    }
+
+    // Check if element is already in viewport
+    const rect = element.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) {
+      setIsIntersecting(true);
+      if (triggerOnce) return;
+    } else if (triggerOnce) {
+      // Element is outside viewport on load, hide it until observed
+      setIsIntersecting(false);
     }
 
     const observer = new IntersectionObserver(

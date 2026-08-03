@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
 import { Pen } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -26,37 +27,49 @@ export default function Header() {
           Momentum
         </Link>
 
-        {/* Navigation Links */}
-        <nav className="flex items-center space-x-6 text-sm">
+        {/* Navigation Links with Shared Layout Animated Active Pill */}
+        <nav className="flex items-center space-x-1 sm:space-x-2 text-sm bg-card-muted/60 p-1 rounded-full border border-border-subtle">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`transition-colors relative py-1 ${
+                className={`relative px-3.5 py-1 rounded-full text-xs sm:text-sm font-medium transition-colors ${
                   isActive
-                    ? "font-semibold text-charcoal"
+                    ? "text-charcoal"
                     : "text-charcoal-muted hover:text-charcoal"
                 }`}
               >
-                {item.label}
                 {isActive && (
-                  <span className="absolute bottom-0 left-0 w-full h-[1.5px] bg-charcoal rounded-full" />
+                  <motion.span
+                    layoutId="activeNavPill"
+                    className="absolute inset-0 bg-white rounded-full shadow-sm border border-border-light z-0"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
                 )}
+                <span className="relative z-10">{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
-        {/* Action Button */}
-        <button
-          onClick={handleOpenCapture}
-          className="inline-flex items-center gap-1.5 rounded-full bg-charcoal hover:bg-black text-white px-5 py-1.5 text-sm font-medium transition-all shadow-sm hover:shadow active:scale-95"
-        >
-          <Pen className="w-3.5 h-3.5" />
-          <span>Log</span>
-        </button>
+        {/* Action Button & Sign In Link */}
+        <div className="flex items-center space-x-4">
+          <Link
+            href="/login"
+            className="text-sm font-medium text-charcoal-muted hover:text-charcoal transition-colors hidden sm:block"
+          >
+            Sign In
+          </Link>
+          <button
+            onClick={handleOpenCapture}
+            className="inline-flex items-center gap-1.5 rounded-full bg-charcoal hover:bg-black text-white px-5 py-1.5 text-sm font-medium transition-all shadow-sm hover:shadow active:scale-95"
+          >
+            <Pen className="w-3.5 h-3.5" />
+            <span>Log</span>
+          </button>
+        </div>
       </div>
     </header>
   );
