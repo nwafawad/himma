@@ -14,6 +14,8 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().default(''),
   SUPABASE_ANON_KEY: z.string().default(''),
   SUPABASE_SERVICE_ROLE_KEY: z.string().default(''),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default('gemini-2.0-flash'),
 });
 
 const parseEnv = () => {
