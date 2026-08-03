@@ -7,6 +7,7 @@ const envSchema = z.object({
   PORT: z.string().default('8000').transform((val) => parseInt(val, 10)),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CORS_ORIGIN: z.string().default('*'),
+  CLIENT_URL: z.string().optional(),
   DATABASE_URL: z
     .string()
     .default('postgresql://postgres:postgres@localhost:5432/momentum_db'),

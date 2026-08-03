@@ -1,16 +1,25 @@
 services:
   - type: web
     name: momentum-backend
-    env: docker
-    dockerfilePath: Dockerfile
-    plan: free
+    env: node
+    region: frankfurt
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    preDeployCommand: npm run db:deploy
     healthCheckPath: /health
     envVars:
-      - key: PORT
-        value: 8000
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 8000
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: CLIENT_URL
+        sync: false
       - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
         sync: false
       - key: SUPABASE_URL
         sync: false
@@ -18,5 +27,7 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: CORS_ORIGIN
+      - key: GEMINI_API_KEY
         sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
