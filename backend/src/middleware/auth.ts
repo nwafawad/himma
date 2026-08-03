@@ -73,7 +73,7 @@ export const setAuthProvider = (provider: AuthProvider) => {
 };
 
 /**
- * Authentication middleware.
+ * Authentication middleware (requireAuth).
  * Extracts Bearer token, delegates verification to the configured AuthProvider,
  * and attaches standard `req.user` payload to Express request.
  */
@@ -83,7 +83,7 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({
       error: 'Unauthorized',
-      message: 'Missing or malformed Authorization header.',
+      message: 'Missing or malformed Authorization header. Expected format: "Bearer <token>".',
     });
   }
 
@@ -95,7 +95,7 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
     if (!user) {
       return res.status(401).json({
         error: 'Unauthorized',
-        message: 'Invalid or expired authentication token.',
+        message: 'Invalid, expired, or revoked authentication token.',
       });
     }
 
@@ -108,3 +108,6 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
     });
   }
 };
+
+// Alias requireAuth for express middleware consistency
+export const requireAuth = authenticateUser;

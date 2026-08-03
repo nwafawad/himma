@@ -1,19 +1,8 @@
-import { PrismaClient } from '@prisma/client';
 import pg from 'pg';
+import { prisma } from '../config/prisma.js';
 import { env } from '../config/env.js';
 
-// Global singleton instance of PrismaClient to prevent connection exhaustion in dev mode
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  });
-
-if (env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
-}
+export { prisma };
 
 // Supabase PostgreSQL connection pool setup
 const isLocalhost = env.DATABASE_URL.includes('localhost') || env.DATABASE_URL.includes('127.0.0.1');
