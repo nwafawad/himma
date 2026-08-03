@@ -1,5 +1,7 @@
 import { Router } from 'express';
-import { authenticateUser } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
+import { validateBody, validateParams } from '../middleware/validate.js';
+import { createNoteSchema, updateNoteSchema, idParamSchema } from '../validators/notes.schema.js';
 import {
   getNotes,
   createNote,
@@ -10,13 +12,12 @@ import {
 
 const router = Router();
 
-// Protect all note routes with Auth Middleware
-router.use(authenticateUser);
+router.use(requireAuth);
 
 router.get('/', getNotes);
-router.post('/', createNote);
-router.get('/:id', getNoteById);
-router.put('/:id', updateNote);
-router.delete('/:id', deleteNote);
+router.post('/', validateBody(createNoteSchema), createNote);
+router.get('/:id', validateParams(idParamSchema), getNoteById);
+router.put('/:id', validateParams(idParamSchema), validateBody(updateNoteSchema), updateNote);
+router.delete('/:id', validateParams(idParamSchema), deleteNote);
 
 export default router;

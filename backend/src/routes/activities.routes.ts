@@ -1,5 +1,8 @@
 import { Router } from 'express';
-import { authenticateUser } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
+import { validateBody, validateParams } from '../middleware/validate.js';
+import { createActivitySchema, updateActivitySchema } from '../validators/activities.schema.js';
+import { idParamSchema } from '../validators/notes.schema.js';
 import {
   getActivities,
   createActivity,
@@ -10,13 +13,12 @@ import {
 
 const router = Router();
 
-// Protect all activity routes with Auth Middleware
-router.use(authenticateUser);
+router.use(requireAuth);
 
 router.get('/', getActivities);
-router.post('/', createActivity);
-router.get('/:id', getActivityById);
-router.put('/:id', updateActivity);
-router.delete('/:id', deleteActivity);
+router.post('/', validateBody(createActivitySchema), createActivity);
+router.get('/:id', validateParams(idParamSchema), getActivityById);
+router.put('/:id', validateParams(idParamSchema), validateBody(updateActivitySchema), updateActivity);
+router.delete('/:id', validateParams(idParamSchema), deleteActivity);
 
 export default router;

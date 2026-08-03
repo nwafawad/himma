@@ -1,5 +1,8 @@
 import { Router } from 'express';
-import { authenticateUser } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
+import { validateBody, validateParams } from '../middleware/validate.js';
+import { createInsightRunSchema } from '../validators/insights.schema.js';
+import { idParamSchema } from '../validators/notes.schema.js';
 import {
   getInsightRuns,
   createInsightRun,
@@ -8,10 +11,10 @@ import {
 
 const router = Router();
 
-router.use(authenticateUser);
+router.use(requireAuth);
 
 router.get('/', getInsightRuns);
-router.post('/', createInsightRun);
-router.get('/:id', getInsightRunById);
+router.post('/', validateBody(createInsightRunSchema), createInsightRun);
+router.get('/:id', validateParams(idParamSchema), getInsightRunById);
 
 export default router;

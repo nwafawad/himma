@@ -1,36 +1,13 @@
-import { Request, Response } from 'express';
-import { z } from 'zod';
-import { prisma } from '../db/index.js';
-import { AlignmentScore } from '@prisma/client';
+import { Request, Response, NextFunction } from 'express';
+import * as insightsService from '../services/insights.service.js';
 
-export const createInsightRunSchema = z.object({
-  inputWindow: z.record(z.any()).optional().default({}),
-  skillSummary: z.record(z.any()),
-  directionSummary: z.record(z.any()),
-  alignmentScore: z.nativeEnum(AlignmentScore),
-  citations: z.union([z.array(z.string()), z.record(z.any())]).optional().default([]),
-});
-
-/**
- * GET /api/v1/insights
- * List all historical AI insight runs for the authenticated user.
- */
-export const getInsightRuns = async (req: Request, res: Response) => {
+export const getInsightRuns = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user!.id;
   const limit = Math.min(parseInt((req.query.limit as string) || '20', 10), 50);
   const offset = parseInt((req.query.offset as string) || '0', 10);
 
   try {
-    const [insights, total] = await Promise.all([
-      prisma.insightRun.findMany({
-        where: { userId },
-        orderBy: { timestamp: 'desc' },
-        take: limit,
-        skip: offset,
-      }),
-      prisma.insightRun.count({ where: { userId } }),
-    ]);
-
+    const { insights, total } = await insightsService.listInsightRuns(userId, limit, offset);
     return res.json({
       data: insights,
       pagination: {
@@ -40,68 +17,31 @@ export const getInsightRuns = async (req: Request, res: Response) => {
         hasMore: offset + insights.length < total,
       },
     });
-  } catch (error: any) {
-    console.error('Error fetching insight runs:', error);
-    return res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  } catch (error) {
+    next(error);
   }
 };
 
-/**
- * POST /api/v1/insights
- * Log a new AI insight run (immutable record creation).
- */
-export const createInsightRun = async (req: Request, res: Response) => {
+export const createInsightRun = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user!.id;
-  const parseResult = createInsightRunSchema.safeParse(req.body);
-
-  if (!parseResult.success) {
-    return res.status(400).json({
-      error: 'Bad Request',
-      details: parseResult.error.format(),
-    });
-  }
-
-  const { inputWindow, skillSummary, directionSummary, alignmentScore, citations } = parseResult.data;
-
   try {
-    const insight = await prisma.insightRun.create({
-      data: {
-        userId,
-        inputWindow: inputWindow || {},
-        skillSummary,
-        directionSummary,
-        alignmentScore,
-        citations: citations || [],
-      },
-    });
-
+    const insight = await insightsService.createInsightRunForUser(userId, req.body);
     return res.status(201).json({ data: insight });
-  } catch (error: any) {
-    console.error('Error creating insight run:', error);
-    return res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  } catch (error) {
+    next(error);
   }
 };
 
-/**
- * GET /api/v1/insights/:id
- * Fetch a single insight run by ID.
- */
-export const getInsightRunById = async (req: Request, res: Response) => {
+export const getInsightRunById = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user!.id;
   const { id } = req.params;
-
   try {
-    const insight = await prisma.insightRun.findFirst({
-      where: { id, userId },
-    });
-
+    const insight = await insightsService.getInsightRunByIdAndUser(id, userId);
     if (!insight) {
-      return res.status(404).json({ error: 'Not Found', message: 'Insight run report not found' });
+      return res.status(404).json({ error: 'Not Found', message: 'Insight run report not found.' });
     }
-
     return res.json({ data: insight });
-  } catch (error: any) {
-    console.error('Error fetching insight run by ID:', error);
-    return res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  } catch (error) {
+    next(error);
   }
 };

@@ -19,7 +19,8 @@ applySecurityMiddleware(app);
 // Top-level /health route for cloud provider container health checks
 app.use('/health', healthRoutes);
 
-// Versioned REST API routes (/api/v1)
+// Dual REST API routing (/api and /api/v1)
+app.use('/api', apiRouter);
 app.use('/api/v1', apiRouter);
 
 // 404 Handler for undefined routes
