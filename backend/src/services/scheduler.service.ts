@@ -48,7 +48,7 @@ export const executeUserInsightWithRetry = async (
 };
 
 /**
- * Batch processor: Iterates across all active users and triggers Insight Runs.
+ * Batch processor: Iterates across all active users and triggers Insight Runs in concurrent chunks.
  */
 export const runBatchInsightEngine = async (): Promise<{ processed: number; errors: number }> => {
   console.log('🚀 Starting Scheduled Batch AI Insight Engine Job...');
@@ -56,16 +56,35 @@ export const runBatchInsightEngine = async (): Promise<{ processed: number; erro
   let errors = 0;
 
   try {
-    const users = await prisma.user.findMany({ select: { id: true } });
-    console.log(`📋 Found ${users.length} user(s) for batch insight processing.`);
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    for (const user of users) {
-      try {
-        await executeUserInsightWithRetry(user.id);
-        processed++;
-      } catch (err: any) {
-        errors++;
-        console.error(`Batch processing failed for user ${user.id}:`, err);
+    // Only process users with log activity or notes in the past 30 days
+    const activeUsers = await prisma.user.findMany({
+      where: {
+        OR: [
+          { activityEntries: { some: { consumedAt: { gte: thirtyDaysAgo } } } },
+          { noteEntries: { some: { createdAt: { gte: thirtyDaysAgo } } } },
+        ],
+      },
+      select: { id: true },
+    });
+
+    console.log(`📋 Found ${activeUsers.length} active user(s) for batch insight processing.`);
+
+    const chunkSize = 5;
+    for (let i = 0; i < activeUsers.length; i += chunkSize) {
+      const chunk = activeUsers.slice(i, i + chunkSize);
+      const results = await Promise.allSettled(
+        chunk.map((user) => executeUserInsightWithRetry(user.id))
+      );
+
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          processed++;
+        } else {
+          errors++;
+          console.error('Batch processing chunk item failed:', result.reason);
+        }
       }
     }
   } catch (err: any) {

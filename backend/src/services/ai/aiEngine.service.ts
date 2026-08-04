@@ -1,4 +1,5 @@
 import { AlignmentScore } from '@prisma/client';
+import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { prisma } from '../../config/prisma.js';
 import { buildUserContext } from './contextBuilder.js';
@@ -8,6 +9,23 @@ import { generateGeminiContent, aiClient } from './gemini.client.js';
 import { createTelemetry, TelemetryData } from './telemetry.js';
 
 export type { TelemetryData, GeneratedInsightPayload };
+
+const aiOutputSchema = z.object({
+  skill_summary: z.object({
+    strong: z.array(z.string()).default([]),
+    emerging: z.array(z.string()).default([]),
+    developing: z.array(z.string()).default([]),
+  }).default({ strong: [], emerging: [], developing: [] }),
+  direction_summary: z.object({
+    narrative: z.string().default(''),
+    candidatePaths: z.array(z.object({
+      path: z.string(),
+      rationale: z.string(),
+    })).default([]),
+  }).default({ narrative: '', candidatePaths: [] }),
+  alignment_score: z.enum(['on track', 'drifting', 'no stated goal yet']).default('no stated goal yet'),
+  citations: z.array(z.string()).default([]),
+});
 
 /**
  * Modular AI Insight Engine Pipeline:
@@ -84,10 +102,19 @@ ${notes.map((n) => `- ID: ${n.id} | Text: "${n.text.substring(0, 100)}" | Tags: 
     try {
       const response = await generateGeminiContent(currentPrompt, modelName);
       const responseText = response.text || '{}';
-      const parsedJson = JSON.parse(responseText);
+      
+      // Sanitize markdown fences from raw text
+      const sanitizedText = responseText
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/, '')
+        .replace(/\s*```$/, '')
+        .trim();
+
+      const rawJson = JSON.parse(sanitizedText);
+      const parsedJson = aiOutputSchema.parse(rawJson);
 
       // Validate citations against database valid UUIDs
-      const citationCheck = validateCitations(parsedJson.citations || [], validUuids);
+      const citationCheck = validateCitations(parsedJson.citations, validUuids);
 
       if (!citationCheck.isValid) {
         console.warn(`Attempt ${attempts} failed citation validation. Invalid IDs: ${citationCheck.invalidIds.join(', ')}`);
@@ -118,16 +145,16 @@ ${notes.map((n) => `- ID: ${n.id} | Text: "${n.text.substring(0, 100)}" | Tags: 
           notesCount: notes.length,
         },
         skillSummary: {
-          strong: parsedJson.skill_summary?.strong || [],
-          emerging: parsedJson.skill_summary?.emerging || [],
-          developing: parsedJson.skill_summary?.developing || [],
+          strong: parsedJson.skill_summary.strong,
+          emerging: parsedJson.skill_summary.emerging,
+          developing: parsedJson.skill_summary.developing,
         },
         directionSummary: {
-          narrative: parsedJson.direction_summary?.narrative || '',
-          candidatePaths: parsedJson.direction_summary?.candidatePaths || [],
+          narrative: parsedJson.direction_summary.narrative,
+          candidatePaths: parsedJson.direction_summary.candidatePaths,
         },
         alignmentScore,
-        citations: parsedJson.citations || [],
+        citations: parsedJson.citations,
         telemetry,
       };
     } catch (err: any) {

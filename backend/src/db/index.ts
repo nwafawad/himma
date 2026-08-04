@@ -1,29 +1,12 @@
-import pg from 'pg';
 import { prisma } from '../config/prisma.js';
-import { env } from '../config/env.js';
 
 export { prisma };
 
-// Supabase PostgreSQL connection pool setup
-const isLocalhost = env.DATABASE_URL.includes('localhost') || env.DATABASE_URL.includes('127.0.0.1');
-
-export const pool = new pg.Pool({
-  connectionString: env.DATABASE_URL,
-  ssl: isLocalhost ? false : { rejectUnauthorized: false },
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
-
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle PostgreSQL client', err);
-});
-
 /**
- * Execute a raw SQL query using the pool.
+ * Execute a raw SQL query using Prisma engine.
  */
-export const query = (text: string, params?: any[]) => {
-  return pool.query(text, params);
+export const query = (text: string, params: any[] = []) => {
+  return prisma.$queryRawUnsafe(text, ...params);
 };
 
 /**
@@ -38,4 +21,11 @@ export const checkDbHealth = async (): Promise<{ isConnected: boolean; latencyMs
   } catch (err: any) {
     return { isConnected: false, error: err.message || 'Database connection error' };
   }
+};
+
+/**
+ * Close database client connections gracefully.
+ */
+export const closeDbConnections = async (): Promise<void> => {
+  await prisma.$disconnect();
 };

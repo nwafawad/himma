@@ -3,7 +3,7 @@ dns.setDefaultResultOrder('ipv4first');
 
 import app from './app.js';
 import { env } from './config/env.js';
-import { pool } from './db/index.js';
+import { closeDbConnections } from './db/index.js';
 import { initScheduler } from './services/scheduler.service.js';
 
 const server = app.listen(env.PORT, () => {
@@ -19,11 +19,11 @@ const gracefulShutdown = async (signal: string) => {
   server.close(async () => {
     console.log('🔒 Closed active HTTP server connections.');
     try {
-      await pool.end();
-      console.log('🐘 PostgreSQL pool has been closed.');
+      await closeDbConnections();
+      console.log('🐘 PostgreSQL database connection closed.');
       process.exit(0);
     } catch (err) {
-      console.error('Error during database pool shutdown:', err);
+      console.error('Error during database shutdown:', err);
       process.exit(1);
     }
   });

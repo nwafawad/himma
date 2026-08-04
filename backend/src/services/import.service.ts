@@ -118,45 +118,46 @@ export const confirmImportCandidates = async (
   approvedCandidateIds: string[],
   excludedCandidateIds: string[] = []
 ) => {
-  // Reject excluded candidates
-  if (excludedCandidateIds.length > 0) {
-    await prisma.importCandidate.updateMany({
-      where: { id: { in: excludedCandidateIds }, userId },
-      data: { status: 'rejected' },
+  return prisma.$transaction(async (tx) => {
+    // Reject excluded candidates
+    if (excludedCandidateIds.length > 0) {
+      await tx.importCandidate.updateMany({
+        where: { id: { in: excludedCandidateIds }, userId },
+        data: { status: 'rejected' },
+      });
+    }
+
+    // Fetch approved candidates
+    const candidatesToApprove = await tx.importCandidate.findMany({
+      where: { id: { in: approvedCandidateIds }, userId, status: 'pending' },
     });
-  }
 
-  // Fetch approved candidates
-  const candidatesToApprove = await prisma.importCandidate.findMany({
-    where: { id: { in: approvedCandidateIds }, userId, status: 'pending' },
-  });
+    if (candidatesToApprove.length === 0) {
+      return [];
+    }
 
-  if (candidatesToApprove.length === 0) {
-    return [];
-  }
+    // Transactionally create ActivityEntry records and mark candidates as approved
+    const createdActivities = [];
+    for (const c of candidatesToApprove) {
+      const activity = await tx.activityEntry.create({
+        data: {
+          userId,
+          title: c.title,
+          url: c.url,
+          type: c.type,
+          source: ActivitySource.import,
+          tags: c.tags,
+          consumedAt: c.consumedAt,
+        },
+      });
+      createdActivities.push(activity);
+    }
 
-  // Transactionally create ActivityEntry records and mark candidates as approved
-  const activitiesToCreate = candidatesToApprove.map((c) => ({
-    userId,
-    title: c.title,
-    url: c.url,
-    type: c.type,
-    source: ActivitySource.import,
-    tags: c.tags,
-    consumedAt: c.consumedAt,
-  }));
-
-  const [createdActivities] = await prisma.$transaction([
-    prisma.activityEntry.createMany({ data: activitiesToCreate }),
-    prisma.importCandidate.updateMany({
+    await tx.importCandidate.updateMany({
       where: { id: { in: candidatesToApprove.map((c) => c.id) }, userId },
       data: { status: 'approved' },
-    }),
-  ]);
+    });
 
-  return prisma.activityEntry.findMany({
-    where: { userId, source: ActivitySource.import },
-    orderBy: { createdAt: 'desc' },
-    take: candidatesToApprove.length,
+    return createdActivities;
   });
 };

@@ -1,5 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
+import {
+  PrismaClientKnownRequestError,
+  PrismaClientInitializationError,
+  PrismaClientValidationError,
+} from '@prisma/client/runtime/library.js';
+import multer from 'multer';
+import { ZodError } from 'zod';
 import { env } from '../config/env.js';
 
 export const errorHandler = (
@@ -10,8 +17,45 @@ export const errorHandler = (
 ) => {
   console.error('Unhandled Error:', err);
 
+  // Express Malformed JSON Body Parsing Error
+  if (err instanceof SyntaxError && (err as any).status === 400 && 'body' in err) {
+    return res.status(400).json({
+      error: 'Bad Request',
+      message: 'Malformed JSON payload provided in request body.',
+    });
+  }
+
+  // Multer File Upload Errors
+  if (err instanceof multer.MulterError || err.name === 'MulterError') {
+    const statusCode = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    return res.status(statusCode).json({
+      error: statusCode === 413 ? 'Payload Too Large' : 'Bad Request',
+      message: err.code === 'LIMIT_FILE_SIZE'
+        ? 'Uploaded file exceeds the maximum allowed size limit (5MB).'
+        : `File upload error: ${err.message}`,
+      code: err.code,
+    });
+  }
+
+  // Custom Upload Filter Validation Errors
+  if (err.message && typeof err.message === 'string' && err.message.startsWith('INVALID_')) {
+    return res.status(400).json({
+      error: 'Bad Request',
+      message: err.message,
+    });
+  }
+
+  // Zod Validation Errors
+  if (err instanceof ZodError || err.name === 'ZodError') {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: 'Invalid input payload.',
+      details: (err as ZodError).format(),
+    });
+  }
+
   // Prisma Known Request Errors (e.g. unique constraint violation, record not found)
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+  if (err instanceof PrismaClientKnownRequestError) {
     switch (err.code) {
       case 'P2002':
         return res.status(409).json({
@@ -37,8 +81,16 @@ export const errorHandler = (
     }
   }
 
+  // Prisma Database Connection / Initialization Errors
+  if (err instanceof PrismaClientInitializationError) {
+    return res.status(503).json({
+      error: 'Service Unavailable',
+      message: 'Database server is unreachable or initializing.',
+    });
+  }
+
   // Prisma Validation Errors
-  if (err instanceof Prisma.PrismaClientValidationError) {
+  if (err instanceof PrismaClientValidationError) {
     return res.status(400).json({
       error: 'Validation Error',
       message: 'Invalid data format provided for database operation.',
