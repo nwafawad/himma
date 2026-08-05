@@ -1,4 +1,8 @@
-import { Sparkles, Calendar, ArrowRight, CheckCircle2, AlertCircle } from "lucide-react";
+"use client";
+
+import { useEffect, useState } from "react";
+import { Sparkles, Calendar, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { fetchApi } from "@/lib/api";
 
 interface InsightRun {
   id: string;
@@ -11,50 +15,24 @@ interface InsightRun {
   recommendedFocus: string;
 }
 
-const INSIGHT_RUNS: InsightRun[] = [
-  {
-    id: "run-1",
-    date: "August 3, 2026",
-    period: "Weekly Run #31",
-    status: "ON TRACK",
-    title: "Transition toward Systems Architecture & High-Throughput Engineering",
-    synthesis: "Your activity across July & August shows a heavy concentration in low-level concurrency, microservice communication, and distributed event streaming. You are actively solidifying the foundation for a Senior Systems Architect role.",
-    takeaways: [
-      "80% of study time directed toward Go/Rust memory models and distributed log design.",
-      "Consistent application of theoretical knowledge via hands-on code repository experiments.",
-      "High alignment with your target Staff Systems Architect path."
-    ],
-    recommendedFocus: "Continue deeper exploration into consensus protocols (Raft state machine replication) and network transport optimization."
-  },
-  {
-    id: "run-2",
-    date: "July 27, 2026",
-    period: "Weekly Run #30",
-    status: "ON TRACK",
-    title: "Solidifying Core Distributed Storage Primitives",
-    synthesis: "Logged 18 hours analyzing LSM-Trees, B-Trees, and database indexing algorithms. Demonstrated strong curiosity in database storage engine internals.",
-    takeaways: [
-      "Focused reading on RocksDB and LevelDB architecture.",
-      "Created 4 detailed summary notes evaluating write amplification."
-    ],
-    recommendedFocus: "Bridge database storage theory with event bus architecture."
-  },
-  {
-    id: "run-3",
-    date: "July 20, 2026",
-    period: "Weekly Run #29",
-    status: "DRIFTING",
-    title: "Temporary Context Shift to Mobile UI Animation Frameworks",
-    synthesis: "Study logs indicated a 3-day diversion into React Native gesture handlers and frontend animation tricks, momentarily straying from your primary systems engineering target.",
-    takeaways: [
-      "Reduced backend systems study volume by 45%.",
-      "Identified minor goal drift away from primary Staff Architect milestone."
-    ],
-    recommendedFocus: "Re-anchor weekly schedule around core backend distributed systems reading."
-  }
-];
-
 export default function InsightsPage() {
+  const [insightRuns, setInsightRuns] = useState<InsightRun[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    async function loadInsights() {
+      try {
+        const data = await fetchApi<{ data: InsightRun[] } | InsightRun[]>("/insights");
+        const list = Array.isArray(data) ? data : data.data || [];
+        setInsightRuns(list);
+      } catch (err) {
+        console.warn("Could not fetch insights from backend API:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadInsights();
+  }, []);
   return (
     <div className="space-y-8 pb-16 max-w-4xl mx-auto">
       {/* Header */}
@@ -69,7 +47,17 @@ export default function InsightsPage() {
 
       {/* Insight Run Cards */}
       <div className="space-y-6">
-        {INSIGHT_RUNS.map((run) => (
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-charcoal-muted gap-2">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Loading career insights...</span>
+          </div>
+        ) : insightRuns.length === 0 ? (
+          <div className="p-8 rounded-2xl bg-card border border-border-light text-center text-charcoal-muted">
+            No insight runs recorded yet. Log activities and run analysis from the backend to view pattern evaluations here.
+          </div>
+        ) : (
+          insightRuns.map((run) => (
           <div
             key={run.id}
             className="p-6 sm:p-8 rounded-2xl bg-card border border-border-light shadow-sm hover:shadow transition-shadow space-y-6"
@@ -134,7 +122,7 @@ export default function InsightsPage() {
               <span className="text-charcoal-muted">{run.recommendedFocus}</span>
             </div>
           </div>
-        ))}
+        )))}
       </div>
     </div>
   );

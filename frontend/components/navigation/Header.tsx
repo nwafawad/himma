@@ -3,21 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Pen } from "lucide-react";
+import UserMenu from "./UserMenu";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Timeline", href: "/timeline" },
   { label: "Insights", href: "/insights" },
-  { label: "Settings", href: "/settings" },
 ];
 
 export default function Header() {
   const pathname = usePathname();
-
-  const handleOpenCapture = () => {
-    window.dispatchEvent(new CustomEvent("open-quick-capture"));
-  };
 
   return (
     <header className="w-full border-b border-[#E5E7EB] bg-canvas/80 backdrop-blur-md sticky top-0 z-40">
@@ -54,21 +49,9 @@ export default function Header() {
           })}
         </nav>
 
-        {/* Action Button & Sign In Link */}
+        {/* User Profile Menu / Sign In */}
         <div className="flex items-center space-x-4">
-          <Link
-            href="/login"
-            className="text-sm font-medium text-charcoal-muted hover:text-charcoal transition-colors hidden sm:block"
-          >
-            Sign In
-          </Link>
-          <button
-            onClick={handleOpenCapture}
-            className="inline-flex items-center gap-1.5 rounded-full bg-charcoal hover:bg-black text-white px-5 py-1.5 text-sm font-medium transition-all shadow-sm hover:shadow active:scale-95"
-          >
-            <Pen className="w-3.5 h-3.5" />
-            <span>Log</span>
-          </button>
+          <UserMenu />
         </div>
       </div>
     </header>

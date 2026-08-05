@@ -4,6 +4,7 @@ import "./globals.css";
 import Header from "@/components/navigation/Header";
 import QuickCaptureModal from "@/components/ui/QuickCaptureModal";
 import PageTransition from "@/components/ui/PageTransition";
+import FloatingLogButton from "@/components/ui/FloatingLogButton";
 
 const serifFont = Instrument_Serif({
   weight: ["400"],
@@ -35,6 +36,7 @@ export default function RootLayout({
           <PageTransition>{children}</PageTransition>
         </main>
         <QuickCaptureModal />
+        <FloatingLogButton />
       </body>
     </html>
   );

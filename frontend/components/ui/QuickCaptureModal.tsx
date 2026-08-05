@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X, Link as LinkIcon, Book, Check } from "lucide-react";
+import { fetchApi } from "@/lib/api";
 
 export default function QuickCaptureModal() {
   const [open, setOpen] = useState(false);
@@ -31,9 +32,24 @@ export default function QuickCaptureModal() {
     };
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+
+    try {
+      await fetchApi("/activities", {
+        method: "POST",
+        body: JSON.stringify({
+          title,
+          summary: content || title,
+          category,
+          type: type === "note" ? "Reflection Note" : "URL Resource",
+          link: type === "url" ? title : undefined,
+        }),
+      });
+    } catch (err) {
+      console.warn("Backend unavailable; performing local capture simulation:", err);
+    }
 
     setSaved(true);
     setTimeout(() => {

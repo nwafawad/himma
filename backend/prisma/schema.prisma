@@ -63,6 +63,7 @@ model User {
 model SkillsGoalsProfile {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId        String   @unique @map("user_id") @db.Uuid
+  avatarUrl     String?  @map("avatar_url") @db.Text
   currentSkills String[] @default([]) @map("current_skills")
   interests     String[] @default([])
   targetPath    String?  @map("target_path") @db.Text

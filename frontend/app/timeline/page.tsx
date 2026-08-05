@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Book, FileText, Code, Video, ExternalLink } from "lucide-react";
+import { ExternalLink, Loader2 } from "lucide-react";
+import { fetchApi } from "@/lib/api";
 
 type FilterType = "All" | "Article" | "Course" | "Note" | "Repository" | "Video";
 
@@ -17,61 +18,39 @@ interface TimelineEntry {
   link?: string;
 }
 
-const TIMELINE_DATA: TimelineEntry[] = [
-  {
-    id: "t1",
-    dateGroup: "TODAY, AUGUST 3",
-    type: "Repository",
-    title: "Apache Kafka Internal Architecture & Partition Logs",
-    summary: "Analyzed broker zero-copy network transmissions, page cache interaction, and consumer group rebalancing protocols.",
-    time: "4:30 PM",
-    category: "SYSTEMS",
-    link: "https://github.com",
-  },
-  {
-    id: "t2",
-    dateGroup: "TODAY, AUGUST 3",
-    type: "Note",
-    title: "Monolith vs Microservice Cost Tradeoffs",
-    summary: "Drafted reflection on organizational communication costs (Conway's Law) vs infrastructure overhead.",
-    time: "11:15 AM",
-    category: "ENGINEERING",
-  },
-  {
-    id: "t3",
-    dateGroup: "YESTERDAY, AUGUST 2",
-    type: "Article",
-    title: "Designing Data-Intensive Applications — Chapter 8",
-    summary: "Deep dive into linearizability vs eventual consistency in partitioned consensus algorithms (Raft, Paxos).",
-    time: "8:45 PM",
-    category: "ENGINEERING",
-  },
-  {
-    id: "t4",
-    dateGroup: "YESTERDAY, AUGUST 2",
-    type: "Course",
-    title: "Stanford CS224N: Natural Language Processing with Deep Learning",
-    summary: "Completed lecture on self-attention mechanisms and transformer key-query-value matrix projections.",
-    time: "2:00 PM",
-    category: "PRODUCT",
-  },
-  {
-    id: "t5",
-    dateGroup: "AUGUST 1, 2026",
-    type: "Video",
-    title: "Building Resilient Distributed Event Pipelines",
-    summary: "Watched keynotes on backpressure mechanisms and dead letter queue routing strategies in high-throughput streams.",
-    time: "6:20 PM",
-    category: "SYSTEMS",
-  },
-];
-
 const FILTERS: FilterType[] = ["All", "Article", "Course", "Note", "Repository", "Video"];
 
 export default function TimelinePage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>("All");
+  const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  const filteredEntries = TIMELINE_DATA.filter(
+  useEffect(() => {
+    async function loadTimeline() {
+      try {
+        const data = await fetchApi<{ data: TimelineEntry[] } | TimelineEntry[]>("/notes");
+        const list = Array.isArray(data) ? data : data.data || [];
+        const formatted = list.map((item: any) => ({
+          id: item.id,
+          dateGroup: item.dateGroup || "RECENT",
+          type: item.type || "Note",
+          title: item.title,
+          summary: item.summary || item.content || "",
+          time: item.time || "Today",
+          category: item.category || "ENGINEERING",
+          link: item.link,
+        }));
+        setTimelineEntries(formatted);
+      } catch (err) {
+        console.warn("Could not fetch timeline notes from backend API:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadTimeline();
+  }, []);
+
+  const filteredEntries = timelineEntries.filter(
     (item) => activeFilter === "All" || item.type === activeFilter
   );
 
@@ -119,14 +98,19 @@ export default function TimelinePage() {
       {/* Timeline Feed */}
       <div className="pt-4 space-y-10">
         <AnimatePresence mode="popLayout">
-          {Object.keys(groupedEntries).length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-charcoal-muted gap-2 text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Loading timeline activity...</span>
+            </div>
+          ) : Object.keys(groupedEntries).length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="py-12 text-center text-charcoal-muted font-sans text-sm"
             >
-              No entries found for category "{activeFilter}".
+              No timeline entries found {activeFilter !== "All" ? `for category "${activeFilter}"` : ""}.
             </motion.div>
           ) : (
             Object.entries(groupedEntries).map(([dateGroup, items]) => (
