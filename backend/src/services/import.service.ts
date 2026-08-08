@@ -286,10 +286,39 @@ export const parseAndStageBrowserHistory = async (userId: string, fileContent: s
     if (!rawUrl || isNoiseUrl(rawUrl)) continue;
 
     const rawTitle = entry?.title || entry?.name || entry?.text || rawUrl;
-    const rawDate = entry?.consumedAt || entry?.lastVisitTime || entry?.date || entry?.time;
+    const rawDate =
+      entry?.consumedAt ||
+      entry?.lastVisitTime ||
+      entry?.time_usec ||
+      entry?.visit_time ||
+      entry?.date ||
+      entry?.time;
+
     let consumedAt = new Date();
-    if (rawDate) {
-      const parsedDate = new Date(typeof rawDate === 'number' && rawDate < 1e12 ? rawDate * 1000 : rawDate);
+    if (rawDate !== undefined && rawDate !== null) {
+      let timestampMs: number;
+      if (typeof rawDate === 'number') {
+        if (rawDate > 1e14) {
+          // Microseconds timestamp: Check WebKit Epoch vs Unix Epoch
+          if (rawDate > 1e16) {
+            // WebKit epoch (microseconds since 1601-01-01)
+            timestampMs = (rawDate - 11644473600000000) / 1000;
+          } else {
+            // Unix epoch in microseconds (microseconds since 1970-01-01)
+            timestampMs = rawDate / 1000;
+          }
+        } else if (rawDate < 1e12) {
+          // Unix epoch in seconds
+          timestampMs = rawDate * 1000;
+        } else {
+          // Unix epoch in milliseconds
+          timestampMs = rawDate;
+        }
+      } else {
+        timestampMs = Date.parse(String(rawDate));
+      }
+
+      const parsedDate = new Date(timestampMs);
       if (!isNaN(parsedDate.getTime())) {
         consumedAt = parsedDate;
       }
@@ -434,21 +463,22 @@ export const confirmImportCandidates = async (
       return [];
     }
 
-    // Transactionally create ActivityEntry records and mark candidates as approved
-    const createdActivities = [];
-    for (const c of candidatesToApprove) {
-      const activity = await tx.activityEntry.create({
-        data: {
-          userId,
-          title: c.title,
-          url: c.url,
-          type: c.type,
-          source: ActivitySource.import,
-          tags: c.tags,
-          consumedAt: c.consumedAt,
-        },
+    // Batch-create ActivityEntry records in sub-chunks of 1,000 using createMany for maximum performance
+    const activityDataList = candidatesToApprove.map((c) => ({
+      userId,
+      title: c.title,
+      url: c.url,
+      type: c.type,
+      source: ActivitySource.import,
+      tags: c.tags,
+      consumedAt: c.consumedAt,
+    }));
+
+    const activityChunks = chunkArray(activityDataList, 1000);
+    for (const chunk of activityChunks) {
+      await tx.activityEntry.createMany({
+        data: chunk,
       });
-      createdActivities.push(activity);
     }
 
     // Mark candidates as approved in sub-chunks of 1,000
@@ -460,7 +490,9 @@ export const confirmImportCandidates = async (
       });
     }
 
-    return createdActivities;
+    return { count: candidatesToApprove.length };
+  }, {
+    timeout: 30000, // Extend transaction timeout to 30s for large batches
   });
 };
 

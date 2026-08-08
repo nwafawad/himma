@@ -90,7 +90,7 @@ export const confirmCandidates = async (req: Request, res: Response, next: NextF
   const userId = req.user!.id;
   const { approvedCandidateIds, excludedCandidateIds } = req.body;
   try {
-    const savedActivities = await importService.confirmImportCandidates(
+    const result = await importService.confirmImportCandidates(
       userId,
       approvedCandidateIds,
       excludedCandidateIds || []
@@ -98,8 +98,7 @@ export const confirmCandidates = async (req: Request, res: Response, next: NextF
 
     return res.status(201).json({
       message: 'Import candidates confirmed and persisted to ActivityEntry records.',
-      persistedCount: savedActivities.length,
-      data: savedActivities,
+      persistedCount: typeof result === 'object' && 'count' in result ? result.count : (result as any[]).length,
     });
   } catch (error) {
     next(error);

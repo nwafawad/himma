@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ExternalLink, Loader2, RotateCw } from "lucide-react";
+import { ExternalLink, Loader2, RotateCw, ChevronDown } from "lucide-react";
 import { fetchApi } from "@/lib/api";
 
 type FilterType = "All" | "Article" | "Course" | "Note" | "Repository" | "Video";
@@ -16,31 +16,39 @@ interface TimelineEntry {
   time: string;
   category: string;
   link?: string;
+  consumedAt?: string;
 }
 
 const FILTERS: FilterType[] = ["All", "Article", "Course", "Note", "Repository", "Video"];
 
 // In-memory cache for Timeline entries to render instantly on navigation
 let timelineCache: TimelineEntry[] | null = null;
+let timelineHasMoreCache: boolean = false;
 
 export default function TimelinePage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>("All");
   const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>(timelineCache || []);
   const [loading, setLoading] = useState<boolean>(!timelineCache);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [hasMore, setHasMore] = useState<boolean>(timelineHasMoreCache);
 
   const loadTimeline = useCallback(async (isManual = false) => {
     if (isManual && refreshing) return;
     if (isManual) setRefreshing(true);
     try {
-      // Fetch both activities and notes from the backend database
+      // Fetch both activities and notes from the backend database with pagination metadata
       const [activitiesRes, notesRes] = await Promise.all([
-        fetchApi<{ data?: any[] } | any[]>("/activities").catch(() => []),
-        fetchApi<{ data?: any[] } | any[]>("/notes").catch(() => []),
+        fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>("/activities?limit=20&offset=0").catch(() => []),
+        fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>("/notes?limit=20&offset=0").catch(() => []),
       ]);
 
       const rawActivities = Array.isArray(activitiesRes) ? activitiesRes : activitiesRes?.data || [];
       const rawNotes = Array.isArray(notesRes) ? notesRes : notesRes?.data || [];
+
+      const actHasMore = Array.isArray(activitiesRes) ? false : Boolean(activitiesRes?.pagination?.hasMore);
+      const noteHasMore = Array.isArray(notesRes) ? false : Boolean(notesRes?.pagination?.hasMore);
+      const hasMoreFlag = actHasMore || noteHasMore;
 
       const formattedActivities: TimelineEntry[] = rawActivities.map((item: any) => {
         const dateObj = item.consumedAt ? new Date(item.consumedAt) : new Date();
@@ -63,6 +71,7 @@ export default function TimelinePage() {
           time,
           category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
           link: item.url,
+          consumedAt: item.consumedAt,
         };
       });
 
@@ -79,12 +88,15 @@ export default function TimelinePage() {
           summary: item.text || "",
           time,
           category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
+          consumedAt: item.createdAt,
         };
       });
 
       const merged = [...formattedActivities, ...formattedNotes];
       timelineCache = merged;
+      timelineHasMoreCache = hasMoreFlag;
       setTimelineEntries(merged);
+      setHasMore(hasMoreFlag);
     } catch (err) {
       console.warn("Could not fetch timeline items from backend API:", err);
     } finally {
@@ -92,6 +104,84 @@ export default function TimelinePage() {
       setRefreshing(false);
     }
   }, [refreshing]);
+
+  const loadMoreTimeline = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const offset = timelineEntries.length;
+      const [activitiesRes, notesRes] = await Promise.all([
+        fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>(`/activities?limit=20&offset=${offset}`).catch(() => []),
+        fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>(`/notes?limit=20&offset=${offset}`).catch(() => []),
+      ]);
+
+      const rawActivities = Array.isArray(activitiesRes) ? activitiesRes : activitiesRes?.data || [];
+      const rawNotes = Array.isArray(notesRes) ? notesRes : notesRes?.data || [];
+
+      const actHasMore = Array.isArray(activitiesRes) ? false : Boolean(activitiesRes?.pagination?.hasMore);
+      const noteHasMore = Array.isArray(notesRes) ? false : Boolean(notesRes?.pagination?.hasMore);
+      const hasMoreFlag = actHasMore || noteHasMore;
+
+      const formattedActivities: TimelineEntry[] = rawActivities.map((item: any) => {
+        const dateObj = item.consumedAt ? new Date(item.consumedAt) : new Date();
+        const dateGroup = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase();
+        const time = dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+        let mappedType: FilterType = "Article";
+        if (item.type === "article") mappedType = "Article";
+        else if (item.type === "video") mappedType = "Video";
+        else if (item.type === "course") mappedType = "Course";
+        else if (item.type === "repository") mappedType = "Repository";
+        else mappedType = "Note";
+
+        return {
+          id: item.id,
+          dateGroup,
+          type: mappedType,
+          title: item.title,
+          summary: item.text || item.title,
+          time,
+          category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
+          link: item.url,
+          consumedAt: item.consumedAt,
+        };
+      });
+
+      const formattedNotes: TimelineEntry[] = rawNotes.map((item: any) => {
+        const dateObj = item.createdAt ? new Date(item.createdAt) : new Date();
+        const dateGroup = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase();
+        const time = dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+        return {
+          id: item.id,
+          dateGroup,
+          type: "Note",
+          title: item.text ? (item.text.length > 60 ? `${item.text.slice(0, 60)}...` : item.text) : "Study Note",
+          summary: item.text || "",
+          time,
+          category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
+          consumedAt: item.createdAt,
+        };
+      });
+
+      const newMerged = [...formattedActivities, ...formattedNotes];
+
+      setTimelineEntries((prev) => {
+        const existingIds = new Set(prev.map((e) => e.id));
+        const filteredNew = newMerged.filter((e) => !existingIds.has(e.id));
+        const updated = [...prev, ...filteredNew];
+        timelineCache = updated;
+        return updated;
+      });
+
+      timelineHasMoreCache = hasMoreFlag;
+      setHasMore(hasMoreFlag);
+    } catch (err) {
+      console.warn("Could not fetch more timeline items:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     loadTimeline();
@@ -114,54 +204,64 @@ export default function TimelinePage() {
     };
   }, [loadTimeline]);
 
-  const filteredEntries = timelineEntries.filter(
-    (item) => activeFilter === "All" || item.type === activeFilter
-  );
+  // Filter entries
+  const filteredEntries = timelineEntries.filter((entry) => {
+    if (activeFilter === "All") return true;
+    return entry.type === activeFilter;
+  });
 
   // Group filtered entries by dateGroup
-  const groupedEntries = filteredEntries.reduce((acc, item) => {
-    if (!acc[item.dateGroup]) {
-      acc[item.dateGroup] = [];
+  const groupedEntries = filteredEntries.reduce<Record<string, TimelineEntry[]>>((acc, entry) => {
+    if (!acc[entry.dateGroup]) {
+      acc[entry.dateGroup] = [];
     }
-    acc[item.dateGroup].push(item);
+    acc[entry.dateGroup].push(entry);
     return acc;
-  }, {} as Record<string, TimelineEntry[]>);
+  }, {});
 
   return (
-    <div className="space-y-8 pb-16 max-w-4xl mx-auto">
-      {/* Page Title & Refresh Action */}
-      <div className="border-b border-border-light pb-4 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-serif italic text-4xl sm:text-5xl text-charcoal">
-            Activity Timeline
+    <div className="max-w-4xl mx-auto space-y-8 pb-12">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border-light">
+        <div className="space-y-1">
+          <h1 className="font-serif italic text-3xl sm:text-4xl text-charcoal">
+            Learning Timeline
           </h1>
-          <p className="text-sm text-charcoal-muted mt-1">
-            Chronological record of self-directed study sessions, notes, and imported resources.
+          <p className="text-sm text-charcoal-muted font-sans">
+            A chronological trail of your study logs, course progress, notes, and imported history.
           </p>
         </div>
-        <button
-          onClick={() => loadTimeline(true)}
-          disabled={refreshing || loading}
-          title="Refresh timeline entries"
-          className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border-light bg-card hover:border-charcoal/20 text-xs font-medium text-charcoal-muted hover:text-charcoal transition-all disabled:opacity-50 disabled:pointer-events-none shadow-sm"
-        >
-          <RotateCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-charcoal" : ""}`} />
-          <span>{refreshing ? "Refreshing..." : "Refresh"}</span>
-        </button>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => loadTimeline(true)}
+            disabled={refreshing || loading}
+            title="Refresh timeline"
+            className="p-2 rounded-xl border border-border-light bg-card hover:border-charcoal/20 text-charcoal-muted hover:text-charcoal transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center shadow-2xs"
+          >
+            <RotateCw className={`w-4 h-4 ${refreshing ? "animate-spin text-charcoal" : ""}`} />
+          </button>
+          <div className="flex items-center gap-2">
+            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-charcoal-muted" />}
+            <span className="text-xs text-charcoal-muted font-mono font-medium uppercase tracking-wider">
+              {filteredEntries.length} {filteredEntries.length === 1 ? "LOG" : "LOGS"}
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Filter Pills */}
-      <div className="flex overflow-x-auto no-scrollbar py-1 gap-2 sm:flex-wrap -mx-4 px-4 sm:mx-0 sm:px-0">
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none">
         {FILTERS.map((filter) => {
           const isActive = activeFilter === filter;
           return (
             <button
               key={filter}
               onClick={() => setActiveFilter(filter)}
-              className={`whitespace-nowrap text-xs uppercase tracking-wider font-medium px-4 py-2 rounded-full border transition-all shrink-0 ${
+              className={`px-4 py-2 rounded-full text-xs font-medium transition-all shrink-0 ${
                 isActive
-                  ? "bg-charcoal text-white border-charcoal shadow-sm"
-                  : "bg-card-muted text-charcoal-muted border-transparent hover:border-border-light hover:text-charcoal"
+                  ? "bg-charcoal text-white shadow-sm"
+                  : "bg-card hover:bg-card-muted border border-border-light text-charcoal-muted hover:text-charcoal"
               }`}
             >
               {filter}
@@ -170,13 +270,13 @@ export default function TimelinePage() {
         })}
       </div>
 
-      {/* Timeline Feed */}
-      <div className="pt-4 space-y-10">
+      {/* Timeline Stream */}
+      <div className="space-y-8">
         <AnimatePresence mode="popLayout">
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-charcoal-muted gap-2 text-sm">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Loading timeline activity...</span>
+            <div className="flex items-center justify-center py-16 text-charcoal-muted text-sm gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-charcoal" />
+              <span>Building your learning timeline...</span>
             </div>
           ) : Object.keys(groupedEntries).length === 0 ? (
             <motion.div
@@ -229,7 +329,14 @@ export default function TimelinePage() {
                         <h4 className="font-serif italic text-xl text-charcoal group-hover:text-black transition-colors flex items-center justify-between">
                           <span>{item.title}</span>
                           {item.link && (
-                            <ExternalLink className="w-4 h-4 text-charcoal-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <a
+                              href={item.link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-charcoal-muted hover:text-charcoal"
+                            >
+                              <ExternalLink className="w-4 h-4 text-charcoal-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </a>
                           )}
                         </h4>
 
@@ -244,6 +351,30 @@ export default function TimelinePage() {
             ))
           )}
         </AnimatePresence>
+
+        {/* Load More Pagination Button */}
+        {hasMore && (
+          <div className="pt-4 text-center">
+            <button
+              type="button"
+              onClick={loadMoreTimeline}
+              disabled={loadingMore}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-card hover:bg-card-muted border border-border-light text-charcoal text-xs font-medium transition-all shadow-sm hover:shadow active:scale-95 disabled:opacity-50"
+            >
+              {loadingMore ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Loading older timeline entries...</span>
+                </>
+              ) : (
+                <>
+                  <span>Load More Timeline Entries</span>
+                  <ChevronDown className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

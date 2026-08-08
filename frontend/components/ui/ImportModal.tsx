@@ -218,13 +218,14 @@ export default function ImportModal() {
           excludedCandidateIds: excludedArray,
         }),
       });
-    } catch (err) {
-      console.warn("Backend confirm call warning:", err);
-    } finally {
       window.dispatchEvent(new CustomEvent("activity-logged"));
       setConfirmedCount(approvedArray.length);
-      setConfirming(false);
       setStep("success");
+    } catch (err: any) {
+      console.warn("Backend confirm call error:", err);
+      setErrorMessage(err.message || "Failed to confirm import selections.");
+    } finally {
+      setConfirming(false);
     }
   };
 
