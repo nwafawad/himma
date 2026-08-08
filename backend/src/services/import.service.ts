@@ -65,7 +65,30 @@ export const stageCandidates = async (
 };
 
 /**
+ * Helper to check if a URL is noise (search engine query, login page, local file, social media feed).
+ */
+const isNoiseUrl = (urlStr?: string): boolean => {
+  if (!urlStr) return true;
+  const lower = urlStr.toLowerCase();
+  return (
+    lower.startsWith('chrome://') ||
+    lower.startsWith('about:') ||
+    lower.startsWith('file://') ||
+    lower.includes('google.com/search') ||
+    lower.includes('bing.com/search') ||
+    lower.includes('duckduckgo.com/?q=') ||
+    lower.includes('/login') ||
+    lower.includes('/signin') ||
+    lower.includes('/oauth') ||
+    lower.includes('/auth/') ||
+    lower.includes('facebook.com') ||
+    lower.includes('instagram.com')
+  );
+};
+
+/**
  * Parses and validates raw browser history JSON content and stages valid entries as candidates.
+ * Capable of handling large 9MB+ history JSON exports with 30,000+ entries by filtering noise.
  *
  * @param userId - Unique identifier of the user uploading browser history.
  * @param fileContent - Raw JSON string containing exported browser history entries.
@@ -84,42 +107,105 @@ export const parseAndStageBrowserHistory = async (userId: string, fileContent: s
     throw new Error('INVALID_SCHEMA: Browser history export must be a JSON array of entries.');
   }
 
-  const validationResult = browserHistoryExportSchema.safeParse(parsedRaw);
-  if (!validationResult.success) {
-    throw new Error(`INVALID_SCHEMA: File content does not match expected browser history schema: ${validationResult.error.message}`);
+  // Filter & normalize entries from large exports (e.g. 9MB files with 30k+ history logs)
+  const candidateItems: Array<{ title: string; url?: string; type?: ActivityType; consumedAt?: Date }> = [];
+
+  for (const entry of parsedRaw) {
+    const rawUrl = entry?.url || entry?.uri || entry?.href;
+    if (!rawUrl || isNoiseUrl(rawUrl)) continue;
+
+    const rawTitle = entry?.title || entry?.name || entry?.text || rawUrl;
+    const rawDate = entry?.consumedAt || entry?.lastVisitTime || entry?.date || entry?.time;
+    let consumedAt = new Date();
+    if (rawDate) {
+      const parsedDate = new Date(typeof rawDate === 'number' && rawDate < 1e12 ? rawDate * 1000 : rawDate);
+      if (!isNaN(parsedDate.getTime())) {
+        consumedAt = parsedDate;
+      }
+    }
+
+    candidateItems.push({
+      title: String(rawTitle).trim(),
+      url: String(rawUrl).trim(),
+      type: entry?.type || inferActivityType(rawUrl),
+      consumedAt,
+    });
+
+    // Limit candidate staging pool to top 300 relevant learning items to keep UI & DB fast
+    if (candidateItems.length >= 300) break;
   }
 
-  const items = validationResult.data.map((entry) => ({
-    title: entry.title,
-    url: entry.url,
-    type: entry.type,
-    consumedAt: entry.consumedAt ? new Date(entry.consumedAt) : new Date(),
-  }));
+  if (candidateItems.length === 0) {
+    throw new Error('NO_VALID_ENTRIES: No valid study history items found in the uploaded file.');
+  }
 
-  return stageCandidates(userId, items);
+  return stageCandidates(userId, candidateItems);
 };
 
 /**
- * Parses a list of pasted URL strings into candidate items (inferring titles and activity types) and stages them.
+ * Resolves shortened/compressed URLs and fetches OpenGraph/HTML title metadata.
+ *
+ * @param urlStr - Target URL string to resolve.
+ * @returns Object containing canonical resolvedUrl and extracted human-readable title.
+ */
+const resolveUrlMetadata = async (urlStr: string): Promise<{ resolvedUrl: string; title: string }> => {
+  let resolvedUrl = urlStr;
+  let title = urlStr;
+
+  try {
+    const parsed = new URL(urlStr);
+    title = parsed.hostname + (parsed.pathname !== '/' ? parsed.pathname : '');
+
+    const response = await fetch(urlStr, {
+      method: 'GET',
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+      signal: AbortSignal.timeout(4000),
+    });
+
+    if (response.url) {
+      resolvedUrl = response.url;
+    }
+
+    if (response.ok) {
+      const htmlText = await response.text();
+      const ogTitleMatch = htmlText.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
+                           htmlText.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["']/i);
+      const titleTagMatch = htmlText.match(/<title[^>]*>([^<]+)<\/title>/i);
+
+      const extractedTitle = ogTitleMatch?.[1] || titleTagMatch?.[1];
+      if (extractedTitle && extractedTitle.trim()) {
+        title = extractedTitle.trim();
+      }
+    }
+  } catch (_) {
+    // Fallback to default hostname/pathname if external fetch times out or fails
+  }
+
+  return { resolvedUrl, title };
+};
+
+/**
+ * Parses a list of pasted URL strings into candidate items (unshortening URLs, inferring titles and activity types) and stages them.
  *
  * @param userId - Unique identifier of the user submitting pasted URLs.
  * @param urls - Array of URL strings to parse and stage.
  * @returns Array of staged pending candidate records.
  */
 export const parseAndStagePastedUrls = async (userId: string, urls: string[]) => {
-  const items = urls.map((urlStr) => {
-    let title = urlStr;
-    try {
-      const parsed = new URL(urlStr);
-      title = parsed.hostname + parsed.pathname;
-    } catch (_) {}
-    return {
-      title,
-      url: urlStr,
-      type: inferActivityType(urlStr),
-      consumedAt: new Date(),
-    };
-  });
+  const items = await Promise.all(
+    urls.map(async (urlStr) => {
+      const { resolvedUrl, title } = await resolveUrlMetadata(urlStr);
+      return {
+        title,
+        url: resolvedUrl,
+        type: inferActivityType(resolvedUrl),
+        consumedAt: new Date(),
+      };
+    })
+  );
 
   return stageCandidates(userId, items);
 };

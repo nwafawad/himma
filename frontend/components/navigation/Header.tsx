@@ -16,14 +16,14 @@ export default function Header() {
 
   return (
     <header className="w-full border-b border-[#E5E7EB] bg-canvas/80 backdrop-blur-md sticky top-0 z-40">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
         {/* Brand Logo */}
-        <Link href="/" className="font-serif italic text-2xl font-normal text-charcoal hover:opacity-80 transition-opacity">
+        <Link href="/" className="font-serif italic text-2xl font-normal text-charcoal hover:opacity-80 transition-opacity shrink-0">
           Momentum
         </Link>
 
-        {/* Navigation Links with Shared Layout Animated Active Pill */}
-        <nav className="flex items-center space-x-1 sm:space-x-2 text-sm bg-card-muted/60 p-1 rounded-full border border-border-subtle">
+        {/* Desktop Navigation Links with Shared Layout Animated Active Pill */}
+        <nav className="hidden sm:flex items-center space-x-1 sm:space-x-2 text-sm bg-card-muted/60 p-1 rounded-full border border-border-subtle">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -50,7 +50,7 @@ export default function Header() {
         </nav>
 
         {/* User Profile Menu / Sign In */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
           <UserMenu />
         </div>
       </div>

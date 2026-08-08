@@ -180,14 +180,14 @@ export default function TimelinePage() {
       </div>
 
       {/* Filter Pills */}
-      <div className="flex flex-wrap gap-2 pt-2">
+      <div className="flex overflow-x-auto no-scrollbar py-1 gap-2 sm:flex-wrap -mx-4 px-4 sm:mx-0 sm:px-0">
         {FILTERS.map((filter) => {
           const isActive = activeFilter === filter;
           return (
             <button
               key={filter}
               onClick={() => setActiveFilter(filter)}
-              className={`text-xs uppercase tracking-wider font-medium px-4 py-2 rounded-full border transition-all ${
+              className={`whitespace-nowrap text-xs uppercase tracking-wider font-medium px-4 py-2 rounded-full border transition-all shrink-0 ${
                 isActive
                   ? "bg-charcoal text-white border-charcoal shadow-sm"
                   : "bg-card-muted text-charcoal-muted border-transparent hover:border-border-light hover:text-charcoal"
@@ -228,7 +228,7 @@ export default function TimelinePage() {
                 </div>
 
                 {/* Vertical Timeline Container */}
-                <div className="relative pl-6 border-l border-border-light space-y-4 ml-1">
+                <div className="relative pl-4 sm:pl-6 border-l border-border-light space-y-4 ml-2 sm:ml-1">
                   {items.map((item) => (
                     <motion.div
                       key={item.id}
@@ -237,10 +237,10 @@ export default function TimelinePage() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.98 }}
                       transition={{ duration: 0.2 }}
-                      className="relative p-5 rounded-2xl bg-card border border-border-light shadow-sm hover:border-charcoal/20 transition-all group"
+                      className="relative p-4 sm:p-5 rounded-2xl bg-card border border-border-light shadow-sm hover:border-charcoal/20 transition-all group"
                     >
                       {/* Timeline Dot Node */}
-                      <span className="absolute -left-[31px] top-6 w-2.5 h-2.5 rounded-full bg-white border-2 border-charcoal group-hover:scale-125 transition-transform" />
+                      <span className="absolute -left-[21px] sm:-left-[31px] top-6 w-2.5 h-2.5 rounded-full bg-white border-2 border-charcoal group-hover:scale-125 transition-transform" />
 
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-xs">

@@ -74,7 +74,7 @@ export default function InstallPromptBanner() {
   if (!showBanner || installed) return null;
 
   return (
-    <div className="fixed bottom-5 left-4 right-4 md:left-auto md:right-6 md:max-w-md z-50 animate-in fade-in slide-in-from-bottom-5 duration-300">
+    <div className="fixed bottom-20 sm:bottom-5 left-4 right-4 md:left-auto md:right-6 md:max-w-md z-30 animate-in fade-in slide-in-from-bottom-5 duration-300">
       <div className="bg-zinc-900/95 backdrop-blur-xl border border-indigo-500/30 p-4 rounded-2xl shadow-2xl shadow-indigo-950/50 text-white flex items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 p-0.5 flex-shrink-0 shadow-md">

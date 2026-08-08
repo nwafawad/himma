@@ -62,7 +62,10 @@ export default function DashboardPage() {
         </ScrollReveal>
 
         <ScrollReveal direction="up" delayMs={450}>
-          <div className="p-6 bg-card border border-border-light rounded-2xl cursor-pointer hover:border-charcoal transition-all group shadow-sm hover:shadow-md h-full">
+          <div
+            onClick={() => window.dispatchEvent(new CustomEvent("open-import-modal"))}
+            className="p-6 bg-card border border-border-light rounded-2xl cursor-pointer hover:border-charcoal transition-all group shadow-sm hover:shadow-md h-full"
+          >
             <div className="w-10 h-10 rounded-full bg-card-muted flex items-center justify-center text-charcoal mb-4 group-hover:bg-charcoal group-hover:text-white transition-colors">
               <Upload className="w-5 h-5" />
             </div>

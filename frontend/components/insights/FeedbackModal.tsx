@@ -86,11 +86,11 @@ export default function FeedbackModal({
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-charcoal/40 backdrop-blur-sm z-50 animate-fade-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-card rounded-2xl border border-border-light shadow-xl p-6 sm:p-8 z-50 space-y-6 focus:outline-none">
+        <Dialog.Content className="fixed bottom-0 inset-x-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full max-w-lg bg-card rounded-t-3xl sm:rounded-2xl border border-border-light shadow-xl p-6 sm:p-8 z-50 space-y-6 focus:outline-none max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border-light pb-4">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 flex items-center justify-center shrink-0">
                 <Edit3 className="w-5 h-5" />
               </div>
               <div>
@@ -125,7 +125,7 @@ export default function FeedbackModal({
                 value={targetPath}
                 onChange={(e) => setTargetPath(e.target.value)}
                 placeholder="e.g. Senior Backend Architect, AI Engineering Lead..."
-                className="w-full px-4 py-2.5 rounded-xl border border-border-light bg-card focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-charcoal placeholder:text-charcoal-muted"
+                className="w-full px-4 py-2.5 rounded-xl border border-border-light bg-card focus:outline-none focus:ring-2 focus:ring-indigo-500 text-base sm:text-sm text-charcoal placeholder:text-charcoal-muted"
               />
             </div>
 
@@ -142,7 +142,7 @@ export default function FeedbackModal({
                   onChange={(e) => setSkillsInput(e.target.value)}
                   onKeyDown={handleKeyDownSkill}
                   placeholder="Type a skill & press Enter..."
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-border-light bg-card focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-charcoal placeholder:text-charcoal-muted"
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-border-light bg-card focus:outline-none focus:ring-2 focus:ring-indigo-500 text-base sm:text-sm text-charcoal placeholder:text-charcoal-muted"
                 />
                 <button
                   type="button"

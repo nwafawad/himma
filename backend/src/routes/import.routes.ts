@@ -27,7 +27,7 @@ import { importUrlsSchema, confirmImportSchema } from '../validators/import.sche
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB size limit per NFR-2.4
+    fileSize: 20 * 1024 * 1024, // 20MB size limit to support large 9MB+ browser history exports
   },
   fileFilter: (_req, file, cb) => {
     // Validate file type
