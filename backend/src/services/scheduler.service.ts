@@ -1,10 +1,21 @@
+/**
+ * @file scheduler.service.ts
+ * @description Background cron scheduler service executing automated batch AI insight runs for active users.
+ */
+
 import cron, { ScheduledTask } from 'node-cron';
 import { prisma } from '../config/prisma.js';
 import { env } from '../config/env.js';
 import { generateAndSaveInsightRun } from './insights.service.js';
 
 /**
- * Execute batch Insight Run generation for a single user with exponential backoff retries.
+ * Executes batch AI Insight Run generation for a single user with exponential backoff retries.
+ * In case of persistent failures after maximum retries, records a `failed` status insight run.
+ *
+ * @param userId - Unique identifier of the user to process.
+ * @param timeframeDays - Recency window in days for context gathering (default: 30).
+ * @param maxRetries - Maximum retry attempts upon error (default: 2).
+ * @returns Resolves when user insight generation completes or failure is recorded.
  */
 export const executeUserInsightWithRetry = async (
   userId: string,
@@ -48,7 +59,10 @@ export const executeUserInsightWithRetry = async (
 };
 
 /**
- * Batch processor: Iterates across all active users and triggers Insight Runs in concurrent chunks.
+ * Batch processor: Identifies all active users with activity entries or notes in the past 30 days
+ * and triggers AI Insight Runs in concurrent chunks of 5 users.
+ *
+ * @returns Summary object containing counts of successfully processed users and errors encountered.
  */
 export const runBatchInsightEngine = async (): Promise<{ processed: number; errors: number }> => {
   console.log('🚀 Starting Scheduled Batch AI Insight Engine Job...');
@@ -96,7 +110,9 @@ export const runBatchInsightEngine = async (): Promise<{ processed: number; erro
 };
 
 /**
- * Initialize cron scheduler daemon.
+ * Initializes and starts the background cron scheduler daemon using configured cron pattern.
+ *
+ * @returns The scheduled node-cron task instance.
  */
 export const initScheduler = (): ScheduledTask => {
   const cronExpr = env.INSIGHT_BATCH_CRON;
@@ -109,3 +125,4 @@ export const initScheduler = (): ScheduledTask => {
     });
   });
 };
+

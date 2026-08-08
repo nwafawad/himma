@@ -19,6 +19,7 @@ export default function AuthCard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setErrorMsg(null);
 
@@ -74,6 +75,7 @@ export default function AuthCard() {
   };
 
   const handleOAuthLogin = async (provider: "github" | "google") => {
+    if (loading) return;
     setLoading(true);
     setErrorMsg(null);
     try {
@@ -248,7 +250,7 @@ export default function AuthCard() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-charcoal hover:bg-black text-white py-2.5 text-sm font-medium transition-all shadow active:scale-95 disabled:opacity-80 mt-2"
+          className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-charcoal hover:bg-black text-white py-2.5 text-sm font-medium transition-all shadow active:scale-95 disabled:opacity-70 disabled:pointer-events-none mt-2"
         >
           <span>
             {loading
@@ -273,16 +275,18 @@ export default function AuthCard() {
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
+          disabled={loading}
           onClick={() => handleOAuthLogin("github")}
-          className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl border border-border-light bg-white hover:bg-card-muted text-xs font-medium text-charcoal transition-colors"
+          className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl border border-border-light bg-white hover:bg-card-muted text-xs font-medium text-charcoal transition-colors disabled:opacity-50 disabled:pointer-events-none"
         >
           <GitBranch className="w-4 h-4" />
           <span>GitHub</span>
         </button>
         <button
           type="button"
+          disabled={loading}
           onClick={() => handleOAuthLogin("google")}
-          className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl border border-border-light bg-white hover:bg-card-muted text-xs font-medium text-charcoal transition-colors"
+          className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl border border-border-light bg-white hover:bg-card-muted text-xs font-medium text-charcoal transition-colors disabled:opacity-50 disabled:pointer-events-none"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
             <path

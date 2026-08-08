@@ -1,3 +1,9 @@
+/**
+ * @file aiEngine.service.ts
+ * @description Core modular AI Insight Engine pipeline orchestrator.
+ * Handles Context Building -> Usage Cap Enforcement -> Gemini LLM Invocation -> Citation Validation -> Auto-retry & Quota Fallbacks -> Telemetry.
+ */
+
 import { AlignmentScore } from '@prisma/client';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
@@ -10,6 +16,9 @@ import { createTelemetry, TelemetryData } from './telemetry.js';
 
 export type { TelemetryData, GeneratedInsightPayload };
 
+/**
+ * Zod schema defining the expected structured JSON response format returned by the Gemini AI model.
+ */
 const aiOutputSchema = z.object({
   skill_summary: z.object({
     strong: z.array(z.string()).default([]),
@@ -30,6 +39,10 @@ const aiOutputSchema = z.object({
 /**
  * Modular AI Insight Engine Pipeline:
  * Orchestrates Context Building -> Cost/Budget Guardrails -> Gemini LLM Invocation -> Citation Validation -> Retries / Quota Fallback -> Telemetry.
+ *
+ * @param userId - Unique identifier of the user to generate learning insights for.
+ * @param timeframeDays - Recency window in days for context aggregation (default: 30).
+ * @returns The generated insight payload with telemetry, or a skip result object if thresholds/caps are met.
  */
 export const runAiInsightPipeline = async (
   userId: string,
@@ -176,3 +189,4 @@ ${notes.map((n) => `- ID: ${n.id} | Text: "${n.text.substring(0, 100)}" | Tags: 
 
   return generateLocalHeuristicInsight(activities, notes, profile, timeframeDays);
 };
+

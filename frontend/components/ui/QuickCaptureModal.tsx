@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { X, Link as LinkIcon, Book, Check } from "lucide-react";
+import { X, Link as LinkIcon, Book, Check, Loader2 } from "lucide-react";
 import { fetchApi } from "@/lib/api";
 
 export default function QuickCaptureModal() {
@@ -32,18 +32,22 @@ export default function QuickCaptureModal() {
     };
   }, []);
 
+  const [submitting, setSubmitting] = useState<boolean>(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (submitting || saved || !title.trim()) return;
+
+    setSubmitting(true);
 
     try {
       const actType = type === "url" ? "article" : "other";
       const validUrl = type === "url" && title.startsWith("http") ? title : undefined;
 
-      await fetchApi("/activities", {
+      const activityRes = await fetchApi<{ data?: { id?: string } }>("/activities", {
         method: "POST",
         body: JSON.stringify({
-          title,
+          title: title.trim(),
           type: actType,
           source: "manual",
           url: validUrl,
@@ -51,13 +55,27 @@ export default function QuickCaptureModal() {
         }),
       });
 
-      // Notify ActivityFeed to refresh live entries
-      window.dispatchEvent(new CustomEvent("activity-logged"));
+      if (content.trim()) {
+        await fetchApi("/notes", {
+          method: "POST",
+          body: JSON.stringify({
+            text: content.trim(),
+            tags: [category.toLowerCase()],
+            linkedActivityId: activityRes?.data?.id || null,
+          }),
+        }).catch((err) => console.warn("Linked note creation warning:", err));
+      }
+
+      // Notify ActivityFeed & Timeline to refresh live entries with optimistic item detail
+      window.dispatchEvent(new CustomEvent("activity-logged", { detail: activityRes?.data }));
+      setSaved(true);
     } catch (err) {
       console.warn("Backend unavailable; performing local capture simulation:", err);
+      setSaved(true);
+    } finally {
+      setSubmitting(false);
     }
 
-    setSaved(true);
     setTimeout(() => {
       setSaved(false);
       setOpen(false);
@@ -172,10 +190,15 @@ export default function QuickCaptureModal() {
             <div className="flex justify-end pt-2">
               <button
                 type="submit"
-                disabled={saved}
-                className="inline-flex items-center gap-1.5 rounded-full bg-charcoal hover:bg-black text-white px-5 py-2 text-sm font-medium transition-all shadow active:scale-95 disabled:opacity-80"
+                disabled={submitting || saved || !title.trim()}
+                className="inline-flex items-center gap-1.5 rounded-full bg-charcoal hover:bg-black text-white px-5 py-2 text-sm font-medium transition-all shadow active:scale-95 disabled:opacity-70 disabled:pointer-events-none"
               >
-                {saved ? (
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>Saving...</span>
+                  </>
+                ) : saved ? (
                   <>
                     <Check className="w-4 h-4 text-emerald-400" />
                     <span>Captured!</span>

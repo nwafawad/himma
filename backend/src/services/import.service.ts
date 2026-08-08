@@ -1,7 +1,18 @@
+/**
+ * @file import.service.ts
+ * @description Service handling browser history imports, pasted URLs parsing, staging candidates, and candidate approval/confirmation.
+ */
+
 import { prisma } from '../config/prisma.js';
 import { ActivityType, ActivitySource } from '@prisma/client';
 import { browserHistoryExportSchema } from '../validators/import.schema.js';
 
+/**
+ * Infers an activity type enum based on domain/keyword patterns in a given URL.
+ *
+ * @param url - Optional target URL string to evaluate.
+ * @returns Inferred ActivityType enum value (video, course, repository, article, or other).
+ */
 const inferActivityType = (url?: string): ActivityType => {
   if (!url) return ActivityType.other;
   const lower = url.toLowerCase();
@@ -21,8 +32,12 @@ const inferActivityType = (url?: string): ActivityType => {
 };
 
 /**
- * Stage parsed import candidates into the import_candidates staging table.
- * Candidates are NEVER auto-saved to ActivityEntry records directly.
+ * Stages parsed import candidates into the `import_candidates` staging database table.
+ * Candidates are staged in a `pending` status and are NEVER saved to `ActivityEntry` records directly.
+ *
+ * @param userId - Unique identifier of the user staging the items.
+ * @param items - Array of candidate items containing title, optional URL, type, and consumption timestamp.
+ * @returns Array of pending import candidate records for the user.
  */
 export const stageCandidates = async (
   userId: string,
@@ -50,7 +65,12 @@ export const stageCandidates = async (
 };
 
 /**
- * Parse and validate browser history export content.
+ * Parses and validates raw browser history JSON content and stages valid entries as candidates.
+ *
+ * @param userId - Unique identifier of the user uploading browser history.
+ * @param fileContent - Raw JSON string containing exported browser history entries.
+ * @returns Array of staged pending candidate records.
+ * @throws Error if JSON format is invalid or schema validation fails.
  */
 export const parseAndStageBrowserHistory = async (userId: string, fileContent: string) => {
   let parsedRaw: any;
@@ -80,7 +100,11 @@ export const parseAndStageBrowserHistory = async (userId: string, fileContent: s
 };
 
 /**
- * Parse pasted URLs into title/domain candidates and stage them.
+ * Parses a list of pasted URL strings into candidate items (inferring titles and activity types) and stages them.
+ *
+ * @param userId - Unique identifier of the user submitting pasted URLs.
+ * @param urls - Array of URL strings to parse and stage.
+ * @returns Array of staged pending candidate records.
  */
 export const parseAndStagePastedUrls = async (userId: string, urls: string[]) => {
   const items = urls.map((urlStr) => {
@@ -101,7 +125,10 @@ export const parseAndStagePastedUrls = async (userId: string, urls: string[]) =>
 };
 
 /**
- * Retrieve current staged pending candidates for a user.
+ * Retrieves all currently staged pending candidates for a specified user.
+ *
+ * @param userId - Unique identifier of the user.
+ * @returns Array of pending import candidates ordered by creation date descending.
  */
 export const getPendingCandidates = async (userId: string) => {
   return prisma.importCandidate.findMany({
@@ -111,7 +138,13 @@ export const getPendingCandidates = async (userId: string) => {
 };
 
 /**
- * Confirm import: Persist approved candidates to ActivityEntry and reject excluded candidates.
+ * Confirms import selections by transactionally persisting approved candidates to `ActivityEntry`
+ * records and updating candidate status to `approved` or `rejected`.
+ *
+ * @param userId - Unique identifier of the user confirming the import.
+ * @param approvedCandidateIds - Array of candidate IDs to convert into activity entries.
+ * @param excludedCandidateIds - Optional array of candidate IDs to mark as rejected.
+ * @returns Array of newly created `ActivityEntry` records.
  */
 export const confirmImportCandidates = async (
   userId: string,
@@ -161,3 +194,4 @@ export const confirmImportCandidates = async (
     return createdActivities;
   });
 };
+

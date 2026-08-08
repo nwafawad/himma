@@ -1,3 +1,8 @@
+/**
+ * @file errorHandler.ts
+ * @description Centralized Express global error handling middleware catching database, validation, upload, and unknown runtime errors.
+ */
+
 import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 import {
@@ -9,6 +14,15 @@ import multer from 'multer';
 import { ZodError } from 'zod';
 import { env } from '../config/env.js';
 
+/**
+ * Global Express error handling middleware function.
+ * Maps specific error types (JSON syntax, Multer, Zod validation, Prisma ORM errors) to structured JSON HTTP responses.
+ *
+ * @param err - Caught error object or exception.
+ * @param req - Express Request object.
+ * @param res - Express Response object.
+ * @param next - Express NextFunction callback.
+ */
 export const errorHandler = (
   err: any,
   req: Request,
@@ -106,3 +120,4 @@ export const errorHandler = (
     ...(env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 };
+

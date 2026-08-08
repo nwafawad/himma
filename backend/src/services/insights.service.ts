@@ -1,8 +1,21 @@
+/**
+ * @file insights.service.ts
+ * @description Service managing AI insight runs generation, retrieval, manual run creation, and user feedback processing.
+ */
+
 import { prisma } from '../config/prisma.js';
 import { CreateInsightRunInput } from '../validators/insights.schema.js';
 import { FeedbackInput } from '../validators/feedback.schema.js';
 import { runAiInsightPipeline } from './ai/aiEngine.service.js';
 
+/**
+ * Retrieves a paginated list of insight runs generated for a specific user.
+ *
+ * @param userId - Unique identifier of the target user.
+ * @param limit - Maximum number of insight runs to fetch (default: 20).
+ * @param offset - Pagination offset (default: 0).
+ * @returns Object containing the array of insight run records and total count.
+ */
 export const listInsightRuns = async (userId: string, limit = 20, offset = 0) => {
   const [insights, total] = await Promise.all([
     prisma.insightRun.findMany({
@@ -16,6 +29,13 @@ export const listInsightRuns = async (userId: string, limit = 20, offset = 0) =>
   return { insights, total };
 };
 
+/**
+ * Manually creates an insight run record for a user.
+ *
+ * @param userId - Unique identifier of the target user.
+ * @param input - Insight run payload (input window, skill summary, direction summary, alignment score, citations).
+ * @returns The newly created insight run record.
+ */
 export const createInsightRunForUser = async (userId: string, input: CreateInsightRunInput) => {
   const { inputWindow, skillSummary, directionSummary, alignmentScore, citations } = input;
   return prisma.insightRun.create({
@@ -30,6 +50,13 @@ export const createInsightRunForUser = async (userId: string, input: CreateInsig
   });
 };
 
+/**
+ * Retrieves a single insight run by ID for a specific user.
+ *
+ * @param id - Unique identifier of the insight run.
+ * @param userId - Unique identifier of the user who owns the insight run.
+ * @returns The insight run record if found, or null otherwise.
+ */
 export const getInsightRunByIdAndUser = async (id: string, userId: string) => {
   return prisma.insightRun.findFirst({
     where: { id, userId },
@@ -37,7 +64,12 @@ export const getInsightRunByIdAndUser = async (id: string, userId: string) => {
 };
 
 /**
- * Trigger AI Insight Engine Pipeline, generate report, and save to insight_runs table.
+ * Triggers the AI Insight Engine Pipeline for a user, generates a new insight report,
+ * and persists the result (or skipped state) to the database.
+ *
+ * @param userId - Unique identifier of the target user.
+ * @param timeframeDays - Recency window in days for context aggregation (default: 30).
+ * @returns Object containing `skipped` flag, persisted insight run record (`data`), and telemetry metadata.
  */
 export const generateAndSaveInsightRun = async (userId: string, timeframeDays = 30) => {
   const pipelineResult = await runAiInsightPipeline(userId, timeframeDays);
@@ -86,8 +118,13 @@ export const generateAndSaveInsightRun = async (userId: string, timeframeDays = 
 };
 
 /**
- * Handle user feedback on an insight run ('confirm' or 'correct').
- * If 'correct', update user's skills_goals_profile.
+ * Processes user feedback on an existing insight run ('confirm' or 'correct').
+ * If feedback action is 'correct', automatically updates the user's `skills_goals_profile`.
+ *
+ * @param userId - Unique identifier of the user submitting feedback.
+ * @param insightId - Unique identifier of the insight run being reviewed.
+ * @param feedback - Feedback payload containing action ('confirm' | 'correct') and corrected values.
+ * @returns Confirmation object with processing timestamp, or null if insight run was not found.
  */
 export const processInsightFeedback = async (
   userId: string,
@@ -136,3 +173,4 @@ export const processInsightFeedback = async (
     processedAt: new Date().toISOString(),
   };
 };
+

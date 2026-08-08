@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { ExternalLink, Loader2, RotateCw } from "lucide-react";
 import { fetchApi } from "@/lib/api";
 
 type FilterType = "All" | "Article" | "Course" | "Note" | "Repository" | "Video";
@@ -20,77 +20,128 @@ interface TimelineEntry {
 
 const FILTERS: FilterType[] = ["All", "Article", "Course", "Note", "Repository", "Video"];
 
+// In-memory cache for Timeline entries to render instantly on navigation
+let timelineCache: TimelineEntry[] | null = null;
+
 export default function TimelinePage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>("All");
-  const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>(timelineCache || []);
+  const [loading, setLoading] = useState<boolean>(!timelineCache);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+
+  const loadTimeline = useCallback(async (isManual = false) => {
+    if (isManual && refreshing) return;
+    if (isManual) setRefreshing(true);
+    try {
+      // Fetch both activities and notes from the backend database
+      const [activitiesRes, notesRes] = await Promise.all([
+        fetchApi<{ data?: any[] } | any[]>("/activities").catch(() => []),
+        fetchApi<{ data?: any[] } | any[]>("/notes").catch(() => []),
+      ]);
+
+      const rawActivities = Array.isArray(activitiesRes) ? activitiesRes : activitiesRes?.data || [];
+      const rawNotes = Array.isArray(notesRes) ? notesRes : notesRes?.data || [];
+
+      const formattedActivities: TimelineEntry[] = rawActivities.map((item: any) => {
+        const dateObj = item.consumedAt ? new Date(item.consumedAt) : new Date();
+        const dateGroup = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase();
+        const time = dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+        let mappedType: FilterType = "Article";
+        if (item.type === "article") mappedType = "Article";
+        else if (item.type === "video") mappedType = "Video";
+        else if (item.type === "course") mappedType = "Course";
+        else if (item.type === "repository") mappedType = "Repository";
+        else mappedType = "Note";
+
+        return {
+          id: item.id,
+          dateGroup,
+          type: mappedType,
+          title: item.title,
+          summary: item.text || item.title,
+          time,
+          category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
+          link: item.url,
+        };
+      });
+
+      const formattedNotes: TimelineEntry[] = rawNotes.map((item: any) => {
+        const dateObj = item.createdAt ? new Date(item.createdAt) : new Date();
+        const dateGroup = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase();
+        const time = dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+        return {
+          id: item.id,
+          dateGroup,
+          type: "Note",
+          title: item.text ? (item.text.length > 60 ? `${item.text.slice(0, 60)}...` : item.text) : "Study Note",
+          summary: item.text || "",
+          time,
+          category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
+        };
+      });
+
+      const merged = [...formattedActivities, ...formattedNotes];
+      timelineCache = merged;
+      setTimelineEntries(merged);
+    } catch (err) {
+      console.warn("Could not fetch timeline items from backend API:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [refreshing]);
 
   useEffect(() => {
-    async function loadTimeline() {
-      try {
-        // Fetch both activities and notes from the backend database
-        const [activitiesRes, notesRes] = await Promise.all([
-          fetchApi<{ data?: any[] } | any[]>("/activities").catch(() => []),
-          fetchApi<{ data?: any[] } | any[]>("/notes").catch(() => []),
-        ]);
-
-        const rawActivities = Array.isArray(activitiesRes) ? activitiesRes : activitiesRes?.data || [];
-        const rawNotes = Array.isArray(notesRes) ? notesRes : notesRes?.data || [];
-
-        const formattedActivities: TimelineEntry[] = rawActivities.map((item: any) => {
-          const dateObj = item.consumedAt ? new Date(item.consumedAt) : new Date();
-          const dateGroup = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase();
-          const time = dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-          let mappedType: FilterType = "Article";
-          if (item.type === "article") mappedType = "Article";
-          else if (item.type === "video") mappedType = "Video";
-          else if (item.type === "course") mappedType = "Course";
-          else if (item.type === "repository") mappedType = "Repository";
-          else mappedType = "Note";
-
-          return {
-            id: item.id,
-            dateGroup,
-            type: mappedType,
-            title: item.title,
-            summary: item.text || item.title,
-            time,
-            category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
-            link: item.url,
-          };
-        });
-
-        const formattedNotes: TimelineEntry[] = rawNotes.map((item: any) => {
-          const dateObj = item.createdAt ? new Date(item.createdAt) : new Date();
-          const dateGroup = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase();
-          const time = dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-          return {
-            id: item.id,
-            dateGroup,
-            type: "Note",
-            title: item.text ? (item.text.length > 60 ? `${item.text.slice(0, 60)}...` : item.text) : "Study Note",
-            summary: item.text || "",
-            time,
-            category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
-          };
-        });
-
-        setTimelineEntries([...formattedActivities, ...formattedNotes]);
-      } catch (err) {
-        console.warn("Could not fetch timeline items from backend API:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
     loadTimeline();
 
-    window.addEventListener("activity-logged", loadTimeline);
+    // Auto background refresh every 15 seconds to fetch remote activity updates
+    const interval = setInterval(() => {
+      loadTimeline();
+    }, 15000);
+
+    function handleActivityLogged(event: Event) {
+      const customEvt = event as CustomEvent;
+      if (customEvt.detail && customEvt.detail.id) {
+        const now = new Date();
+        const dateGroup = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase();
+        const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const item = customEvt.detail;
+
+        let mappedType: FilterType = "Article";
+        if (item.type === "article") mappedType = "Article";
+        else if (item.type === "video") mappedType = "Video";
+        else if (item.type === "course") mappedType = "Course";
+        else if (item.type === "repository") mappedType = "Repository";
+        else mappedType = "Note";
+
+        const newEntry: TimelineEntry = {
+          id: item.id,
+          dateGroup,
+          type: mappedType,
+          title: item.title,
+          summary: item.title,
+          time,
+          category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
+          link: item.url,
+        };
+
+        setTimelineEntries((prev) => {
+          const updated = [newEntry, ...prev.filter((e) => e.id !== newEntry.id)];
+          timelineCache = updated;
+          return updated;
+        });
+      }
+      loadTimeline();
+    }
+
+    window.addEventListener("activity-logged", handleActivityLogged);
     return () => {
-      window.removeEventListener("activity-logged", loadTimeline);
+      clearInterval(interval);
+      window.removeEventListener("activity-logged", handleActivityLogged);
     };
-  }, []);
+  }, [loadTimeline]);
 
   const filteredEntries = timelineEntries.filter(
     (item) => activeFilter === "All" || item.type === activeFilter
@@ -107,14 +158,25 @@ export default function TimelinePage() {
 
   return (
     <div className="space-y-8 pb-16 max-w-4xl mx-auto">
-      {/* Page Title */}
-      <div className="border-b border-border-light pb-4">
-        <h1 className="font-serif italic text-4xl sm:text-5xl text-charcoal">
-          Activity Timeline
-        </h1>
-        <p className="text-sm text-charcoal-muted mt-1">
-          Chronological record of self-directed study sessions, notes, and imported resources.
-        </p>
+      {/* Page Title & Refresh Action */}
+      <div className="border-b border-border-light pb-4 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-serif italic text-4xl sm:text-5xl text-charcoal">
+            Activity Timeline
+          </h1>
+          <p className="text-sm text-charcoal-muted mt-1">
+            Chronological record of self-directed study sessions, notes, and imported resources.
+          </p>
+        </div>
+        <button
+          onClick={() => loadTimeline(true)}
+          disabled={refreshing || loading}
+          title="Refresh timeline entries"
+          className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border-light bg-card hover:border-charcoal/20 text-xs font-medium text-charcoal-muted hover:text-charcoal transition-all disabled:opacity-50 disabled:pointer-events-none shadow-sm"
+        >
+          <RotateCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-charcoal" : ""}`} />
+          <span>{refreshing ? "Refreshing..." : "Refresh"}</span>
+        </button>
       </div>
 
       {/* Filter Pills */}

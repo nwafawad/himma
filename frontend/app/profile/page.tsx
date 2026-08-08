@@ -123,6 +123,7 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     setSaving(true);
     setSavedSuccess(false);
 
@@ -151,6 +152,7 @@ export default function ProfilePage() {
   };
 
   const handleExportData = async () => {
+    if (exporting) return;
     setExporting(true);
     try {
       const data = await fetchApi<any>("/user/export");
@@ -342,7 +344,7 @@ export default function ProfilePage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-full bg-charcoal hover:bg-black text-white px-7 py-3 text-xs font-semibold uppercase tracking-wider transition-all shadow-md active:scale-95 disabled:opacity-75"
+                className="inline-flex items-center gap-1.5 rounded-full bg-charcoal hover:bg-black text-white px-7 py-3 text-xs font-semibold uppercase tracking-wider transition-all shadow-md active:scale-95 disabled:opacity-75 disabled:pointer-events-none"
               >
                 {saving ? (
                   <>
@@ -379,7 +381,7 @@ export default function ProfilePage() {
             type="button"
             onClick={handleExportData}
             disabled={exporting}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full border border-border-light bg-white hover:bg-card-muted text-charcoal px-5 py-2.5 text-xs font-medium transition-all shadow-sm"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full border border-border-light bg-white hover:bg-card-muted text-charcoal px-5 py-2.5 text-xs font-medium transition-all shadow-sm disabled:opacity-50 disabled:pointer-events-none"
           >
             {exporting ? <Loader2 className="w-4 h-4 animate-spin text-charcoal-muted" /> : <Download className="w-4 h-4 text-charcoal-muted" />}
             <span>Export Complete Profile Data (JSON)</span>

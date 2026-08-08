@@ -91,6 +91,7 @@ model ActivityEntry {
 
   @@index([userId])
   @@index([userId, consumedAt(sort: Desc)])
+  @@index([userId, type, consumedAt(sort: Desc)])
   @@map("activity_entries")
 }
 

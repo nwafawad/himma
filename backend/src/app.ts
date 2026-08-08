@@ -2,6 +2,7 @@ import dns from 'dns';
 dns.setDefaultResultOrder('ipv4first');
 
 import express from 'express';
+import compression from 'compression';
 import { applySecurityMiddleware } from './middleware/security.js';
 import { enforceHttps } from './middleware/enforceHttps.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -15,6 +16,9 @@ app.set('trust proxy', 1);
 
 // HTTPS Enforcement in production
 app.use(enforceHttps);
+
+// Enable response compression (gzip/brotli)
+app.use(compression());
 
 // Apply Security headers, CORS, and body size limits
 applySecurityMiddleware(app);

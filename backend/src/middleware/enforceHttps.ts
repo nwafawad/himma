@@ -1,3 +1,8 @@
+/**
+ * @file enforceHttps.ts
+ * @description Middleware enforcing HTTPS redirection for plain HTTP traffic in production environments.
+ */
+
 import { Request, Response, NextFunction } from 'express';
 import { env } from '../config/env.js';
 
@@ -9,8 +14,12 @@ import { env } from '../config/env.js';
  * provider's edge proxy. The edge proxy forwards requests to the application container over HTTP
  * and sets the standard 'x-forwarded-proto' header to 'https' for secure client connections.
  * 
- * To ensure 'req.secure' and 'req.protocol' function accurately behind these proxies,
+ * To ensure `req.secure` and `req.protocol` function accurately behind these proxies,
  * the Express app must configure `app.set('trust proxy', 1)`.
+ *
+ * @param req - Express Request object.
+ * @param res - Express Response object.
+ * @param next - Express NextFunction callback.
  */
 export const enforceHttps = (req: Request, res: Response, next: NextFunction) => {
   if (env.NODE_ENV === 'production') {
@@ -31,3 +40,4 @@ export const enforceHttps = (req: Request, res: Response, next: NextFunction) =>
 
   next();
 };
+

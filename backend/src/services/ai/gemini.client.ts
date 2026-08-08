@@ -1,10 +1,20 @@
+/**
+ * @file gemini.client.ts
+ * @description Google GenAI client instance setup, response JSON schema definitions, and LLM generation wrapper.
+ */
+
 import { GoogleGenAI } from '@google/genai';
 import { env } from '../../config/env.js';
 
+/**
+ * Singleton instance of GoogleGenAI client initialized with GEMINI_API_KEY environment variable.
+ * Null if no API key is provided in environment variables.
+ */
 export const aiClient = env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: env.GEMINI_API_KEY }) : null;
 
 /**
- * Structured Output JSON Schema for Gemini API responseSchema parameter
+ * Structured Output JSON Schema definition passed into Gemini API `responseSchema` parameter
+ * to enforce exact response structure matching application domain models.
  */
 export const insightResponseSchema = {
   type: 'OBJECT',
@@ -48,6 +58,14 @@ export const insightResponseSchema = {
   required: ['skill_summary', 'direction_summary', 'alignment_score', 'citations'],
 };
 
+/**
+ * Invokes the Gemini API model with JSON schema enforcement and standard generation parameters.
+ *
+ * @param prompt - Prompt string containing instructions, schema context, and user logs.
+ * @param modelName - Target Gemini model name string (e.g., 'gemini-2.0-flash').
+ * @returns Promise resolving to the model output response.
+ * @throws Error if `aiClient` is null (missing API key).
+ */
 export const generateGeminiContent = async (prompt: string, modelName: string) => {
   if (!aiClient) {
     throw new Error('GoogleGenAI client is not initialized (GEMINI_API_KEY missing).');
@@ -63,3 +81,4 @@ export const generateGeminiContent = async (prompt: string, modelName: string) =
     },
   });
 };
+

@@ -1,15 +1,28 @@
+/**
+ * @file security.ts
+ * @description Security middleware suite: Helmet header protection, CORS origin whitelisting, payload size limits, and in-memory rate limiting.
+ */
+
 import express, { Express, Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import { env } from '../config/env.js';
 
+/**
+ * Interface representing a client's sliding window rate limit entry.
+ */
 interface RateLimitEntry {
+  /** Number of requests made in the current window */
   count: number;
+  /** Epoch timestamp (in ms) when the current window resets */
   resetTime: number;
 }
 
 /**
- * Lightweight, zero-dependency in-memory sliding window rate limiter.
+ * Lightweight, zero-dependency in-memory sliding window rate limiter factory.
+ *
+ * @param options - Configuration options specifying `windowMs` duration, `max` requests limit, and optional error message.
+ * @returns Express middleware function enforcing rate limiting rules.
  */
 export const createRateLimiter = (options: { windowMs: number; max: number; message?: string }) => {
   const store: Map<string, RateLimitEntry> = new Map();
@@ -52,10 +65,12 @@ export const createRateLimiter = (options: { windowMs: number; max: number; mess
 };
 
 /**
- * Configure standard security middleware:
+ * Configures global security middleware on the Express application:
  * - Helmet for HTTP security headers
- * - Dynamic CORS with origin whitelisting (CLIENT_URL and CORS_ORIGIN)
+ * - Dynamic CORS with origin whitelisting (`CLIENT_URL` and `CORS_ORIGIN`)
  * - Body parsing size limits (1MB default limit to prevent payload overload attacks)
+ *
+ * @param app - Express application instance.
  */
 export const applySecurityMiddleware = (app: Express): void => {
   // HTTP Header Security
@@ -90,3 +105,4 @@ export const applySecurityMiddleware = (app: Express): void => {
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 };
+

@@ -53,6 +53,9 @@ export default function UserMenu() {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         if (session?.user) {
+          if (session.access_token) {
+            localStorage.setItem("momentum_token", session.access_token);
+          }
           setUserEmail(session.user.email || "");
           setUserName(
             session.user.user_metadata?.full_name ||

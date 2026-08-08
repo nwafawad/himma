@@ -1,19 +1,39 @@
+/**
+ * @file contextBuilder.ts
+ * @description Context Builder component for assembling user activity logs, notes, skills profile, and historical digest.
+ */
+
 import { prisma } from '../../config/prisma.js';
 import { env } from '../../config/env.js';
 import { getOrCreateRollingDigest, RollingDigestSummary } from './digest.service.js';
 
+/**
+ * Interface representing the assembled context for AI insight generation.
+ */
 export interface UserContextResult {
+  /** Indicates whether insight generation should be skipped due to insufficient data */
   skipped: boolean;
+  /** Human-readable explanation if skipped is true */
   reason: string | null;
+  /** User's skills and goals profile record */
   profile: any;
+  /** Array of activity entries within the timeframe window */
   activities: any[];
+  /** Array of note entries within the timeframe window */
   notes: any[];
+  /** Rolling digest summarizing activities/notes older than timeframe window */
   digest: RollingDigestSummary | null;
+  /** Set of valid UUIDs belonging to user activities and notes for citation validation */
   validUuids: Set<string>;
 }
 
 /**
- * Context Builder: Fetches logs & profile, checks configurable thresholds, attaches rolling profile digest, and trims context.
+ * Assembles user context for AI analysis: fetches logs & profile, verifies configurable minimum threshold rules,
+ * attaches rolling historical digest for entries older than recency window, and collects valid entry UUIDs.
+ *
+ * @param userId - Unique identifier of the user.
+ * @param timeframeDays - Recency window in days for log retrieval (default: 30).
+ * @returns Assembled UserContextResult object.
  */
 export const buildUserContext = async (
   userId: string,
@@ -66,3 +86,4 @@ export const buildUserContext = async (
     validUuids,
   };
 };
+

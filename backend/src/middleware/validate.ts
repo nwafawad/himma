@@ -1,8 +1,17 @@
+/**
+ * @file validate.ts
+ * @description Higher-order Express middleware for validating request body, query parameters, and route params against Zod schemas.
+ */
+
 import { Request, Response, NextFunction } from 'express';
 import { ZodSchema, ZodError } from 'zod';
 
 /**
- * Higher-order middleware to validate req.body against a Zod schema.
+ * Higher-order middleware to validate `req.body` against a Zod schema.
+ * If validation succeeds, replaces `req.body` with parsed/coerced data and calls `next()`.
+ *
+ * @param schema - Zod schema to validate `req.body` against.
+ * @returns Express middleware function.
  */
 export const validateBody = (schema: ZodSchema) => {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -20,7 +29,11 @@ export const validateBody = (schema: ZodSchema) => {
 };
 
 /**
- * Higher-order middleware to validate req.query against a Zod schema.
+ * Higher-order middleware to validate `req.query` against a Zod schema.
+ * If validation succeeds, replaces `req.query` with parsed/coerced data and calls `next()`.
+ *
+ * @param schema - Zod schema to validate `req.query` against.
+ * @returns Express middleware function.
  */
 export const validateQuery = (schema: ZodSchema) => {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -38,7 +51,11 @@ export const validateQuery = (schema: ZodSchema) => {
 };
 
 /**
- * Higher-order middleware to validate req.params against a Zod schema.
+ * Higher-order middleware to validate `req.params` against a Zod schema.
+ * If validation succeeds, replaces `req.params` with parsed/coerced data and calls `next()`.
+ *
+ * @param schema - Zod schema to validate `req.params` against.
+ * @returns Express middleware function.
  */
 export const validateParams = (schema: ZodSchema) => {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -54,3 +71,4 @@ export const validateParams = (schema: ZodSchema) => {
     next();
   };
 };
+

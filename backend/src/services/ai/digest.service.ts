@@ -1,14 +1,31 @@
+/**
+ * @file digest.service.ts
+ * @description Service to aggregate and persist rolling profile digests for user activities and notes older than the recency window.
+ */
+
 import { prisma } from '../../config/prisma.js';
 
+/**
+ * Summary structure representing historical activity counts, top tags, and time period covered.
+ */
 export interface RollingDigestSummary {
+  /** Count of historical activity entries older than recency window */
   historicalActivityCount: number;
+  /** Count of historical note entries older than recency window */
   historicalNoteCount: number;
+  /** Array of top 10 most frequent tags across historical entries */
   topTags: string[];
+  /** Period covered start and end ISO timestamp strings */
   periodCovered: { start: string | null; end: string | null };
 }
 
 /**
- * Service to aggregate & retrieve rolling profile digest for user activity older than recency window.
+ * Retrieves an existing rolling profile digest for entries older than `cutoffDate`,
+ * or aggregates historical activities/notes and creates a new `ProfileDigest` record.
+ *
+ * @param userId - Unique identifier of the target user.
+ * @param cutoffDate - Cutoff Date threshold distinguishing recent entries from historical entries.
+ * @returns RollingDigestSummary object if historical data exists, or null if no historical entries exist.
  */
 export const getOrCreateRollingDigest = async (
   userId: string,
@@ -73,3 +90,4 @@ export const getOrCreateRollingDigest = async (
 
   return digestSummary;
 };
+

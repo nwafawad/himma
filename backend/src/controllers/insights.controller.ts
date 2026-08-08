@@ -1,6 +1,18 @@
+/**
+ * @file insights.controller.ts
+ * @description HTTP route handlers for AI insight generation, insight runs history retrieval, manual run creation, and user feedback submission.
+ */
+
 import { Request, Response, NextFunction } from 'express';
 import * as insightsService from '../services/insights.service.js';
 
+/**
+ * Handles GET `/api/insights` request to list historical AI insight runs generated for the authenticated user.
+ *
+ * @param req - Express Request object containing authenticated `req.user` and pagination query parameters (`limit`, `offset`).
+ * @param res - Express Response object.
+ * @param next - Express NextFunction error handler callback.
+ */
 export const getInsightRuns = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user!.id;
   const limit = Math.min(parseInt((req.query.limit as string) || '20', 10), 50);
@@ -22,6 +34,13 @@ export const getInsightRuns = async (req: Request, res: Response, next: NextFunc
   }
 };
 
+/**
+ * Handles POST `/api/insights` request to manually create an insight run entry.
+ *
+ * @param req - Express Request object containing authenticated `req.user` and insight payload in body.
+ * @param res - Express Response object.
+ * @param next - Express NextFunction error handler callback.
+ */
 export const createInsightRun = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user!.id;
   try {
@@ -32,6 +51,13 @@ export const createInsightRun = async (req: Request, res: Response, next: NextFu
   }
 };
 
+/**
+ * Handles GET `/api/insights/:id` request to retrieve a single insight run report owned by the user.
+ *
+ * @param req - Express Request object containing authenticated `req.user` and route params (`id`).
+ * @param res - Express Response object.
+ * @param next - Express NextFunction error handler callback.
+ */
 export const getInsightRunById = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user!.id;
   const { id } = req.params;
@@ -47,8 +73,12 @@ export const getInsightRunById = async (req: Request, res: Response, next: NextF
 };
 
 /**
- * POST /api/insights/generate
- * Trigger AI Insight Engine Pipeline for the authenticated user.
+ * Handles POST `/api/insights/generate` request to trigger the AI Insight Engine Pipeline for the authenticated user.
+ * Evaluates context activity logs, generates an insight report (or skips if insufficient data), and returns execution telemetry.
+ *
+ * @param req - Express Request object containing authenticated `req.user` and optional `timeframeDays` in request body.
+ * @param res - Express Response object.
+ * @param next - Express NextFunction error handler callback.
  */
 export const generateInsight = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user!.id;
@@ -75,8 +105,12 @@ export const generateInsight = async (req: Request, res: Response, next: NextFun
 };
 
 /**
- * POST /api/insights/:id/feedback
- * Record user feedback ('confirm' or 'correct') on an insight run.
+ * Handles POST `/api/insights/:id/feedback` request to record user feedback ('confirm' or 'correct') on an insight run.
+ * Automatically updates user skills profile when feedback action is 'correct'.
+ *
+ * @param req - Express Request object containing authenticated `req.user`, route params (`id`), and feedback payload.
+ * @param res - Express Response object.
+ * @param next - Express NextFunction error handler callback.
  */
 export const postFeedback = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user!.id;
@@ -97,3 +131,4 @@ export const postFeedback = async (req: Request, res: Response, next: NextFuncti
     next(error);
   }
 };
+

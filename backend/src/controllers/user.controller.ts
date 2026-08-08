@@ -1,6 +1,19 @@
+/**
+ * @file user.controller.ts
+ * @description HTTP route handlers for GDPR user data export bundles and account deletion compliance actions.
+ */
+
 import { Request, Response, NextFunction } from 'express';
 import * as userService from '../services/user.service.js';
 
+/**
+ * Handles GET `/api/user/export` request to generate and download a comprehensive GDPR data export JSON bundle.
+ * Sets `Content-Disposition` header for attachment file download.
+ *
+ * @param req - Express Request object containing authenticated `req.user`.
+ * @param res - Express Response object.
+ * @param next - Express NextFunction error handler callback.
+ */
 export const exportUserData = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user!.id;
   try {
@@ -16,6 +29,13 @@ export const exportUserData = async (req: Request, res: Response, next: NextFunc
   }
 };
 
+/**
+ * Handles DELETE `/api/user/account` request to permanently delete user account data from PostgreSQL and Supabase Auth.
+ *
+ * @param req - Express Request object containing authenticated `req.user`.
+ * @param res - Express Response object.
+ * @param next - Express NextFunction error handler callback.
+ */
 export const deleteAccount = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user!.id;
   try {
@@ -30,3 +50,4 @@ export const deleteAccount = async (req: Request, res: Response, next: NextFunct
     next(error);
   }
 };
+

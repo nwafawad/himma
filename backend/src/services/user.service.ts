@@ -1,6 +1,18 @@
+/**
+ * @file user.service.ts
+ * @description Service handling GDPR user data export bundles and account deletion cleanup across database and Supabase Auth.
+ */
+
 import { prisma } from '../config/prisma.js';
 import { supabaseAdmin } from '../config/supabase.js';
 
+/**
+ * Aggregates all user-owned data (profile, activities, notes, insights, import candidates, profile digests)
+ * into a single GDPR export bundle object.
+ *
+ * @param userId - Unique identifier of the user exporting their data.
+ * @returns Comprehensive JSON data export bundle with ISO export timestamp.
+ */
 export const exportUserDataBundle = async (userId: string) => {
   const [profile, activities, notes, insights, candidates, digests] = await Promise.all([
     prisma.skillsGoalsProfile.findUnique({ where: { userId } }),
@@ -23,6 +35,13 @@ export const exportUserDataBundle = async (userId: string) => {
   };
 };
 
+/**
+ * Deletes a user account completely: removes PostgreSQL record (cascading to all child records)
+ * and deletes the account from Supabase Auth admin service.
+ *
+ * @param userId - Unique identifier of the user account to delete.
+ * @returns Always returns true upon completion.
+ */
 export const deleteUserAccount = async (userId: string) => {
   // 1. Delete user record in PostgreSQL (cascades to all profiles, notes, activities, insights)
   try {
@@ -42,3 +61,4 @@ export const deleteUserAccount = async (userId: string) => {
 
   return true;
 };
+

@@ -1,5 +1,13 @@
+/**
+ * @file extension.controller.ts
+ * @description HTTP route handlers for browser extension domain tracking and passive capture allowlist endpoints.
+ */
+
 import { Request, Response, NextFunction } from 'express';
 
+/**
+ * Default domain allowlist for passive browser activity tracking.
+ */
 const DEFAULT_ALLOWLIST = [
   'github.com',
   'youtube.com',
@@ -11,6 +19,14 @@ const DEFAULT_ALLOWLIST = [
   'arxiv.org',
 ];
 
+/**
+ * Handles POST `/api/extension/track-domain` request to record domain navigation events from the browser extension.
+ * Evaluates the domain against the passive tracking allowlist.
+ *
+ * @param req - Express Request object containing authenticated `req.user` and tracking payload in body.
+ * @param res - Express Response object.
+ * @param next - Express NextFunction error handler callback.
+ */
 export const trackDomain = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user!.id;
   const { domain, title, url, dwellTimeSeconds } = req.body;
@@ -37,6 +53,13 @@ export const trackDomain = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
+/**
+ * Handles GET `/api/extension/allowlist` request to fetch the current domain allowlist for browser extension configuration.
+ *
+ * @param _req - Express Request object.
+ * @param res - Express Response object.
+ * @param next - Express NextFunction error handler callback.
+ */
 export const getAllowlist = async (_req: Request, res: Response, next: NextFunction) => {
   try {
     return res.json({
@@ -46,3 +69,4 @@ export const getAllowlist = async (_req: Request, res: Response, next: NextFunct
     next(error);
   }
 };
+
