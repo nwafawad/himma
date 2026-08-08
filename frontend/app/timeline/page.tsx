@@ -28,26 +28,68 @@ export default function TimelinePage() {
   useEffect(() => {
     async function loadTimeline() {
       try {
-        const data = await fetchApi<{ data: TimelineEntry[] } | TimelineEntry[]>("/notes");
-        const list = Array.isArray(data) ? data : data.data || [];
-        const formatted = list.map((item: any) => ({
-          id: item.id,
-          dateGroup: item.dateGroup || "RECENT",
-          type: item.type || "Note",
-          title: item.title,
-          summary: item.summary || item.content || "",
-          time: item.time || "Today",
-          category: item.category || "ENGINEERING",
-          link: item.link,
-        }));
-        setTimelineEntries(formatted);
+        // Fetch both activities and notes from the backend database
+        const [activitiesRes, notesRes] = await Promise.all([
+          fetchApi<{ data?: any[] } | any[]>("/activities").catch(() => []),
+          fetchApi<{ data?: any[] } | any[]>("/notes").catch(() => []),
+        ]);
+
+        const rawActivities = Array.isArray(activitiesRes) ? activitiesRes : activitiesRes?.data || [];
+        const rawNotes = Array.isArray(notesRes) ? notesRes : notesRes?.data || [];
+
+        const formattedActivities: TimelineEntry[] = rawActivities.map((item: any) => {
+          const dateObj = item.consumedAt ? new Date(item.consumedAt) : new Date();
+          const dateGroup = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase();
+          const time = dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+          let mappedType: FilterType = "Article";
+          if (item.type === "article") mappedType = "Article";
+          else if (item.type === "video") mappedType = "Video";
+          else if (item.type === "course") mappedType = "Course";
+          else if (item.type === "repository") mappedType = "Repository";
+          else mappedType = "Note";
+
+          return {
+            id: item.id,
+            dateGroup,
+            type: mappedType,
+            title: item.title,
+            summary: item.text || item.title,
+            time,
+            category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
+            link: item.url,
+          };
+        });
+
+        const formattedNotes: TimelineEntry[] = rawNotes.map((item: any) => {
+          const dateObj = item.createdAt ? new Date(item.createdAt) : new Date();
+          const dateGroup = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase();
+          const time = dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+          return {
+            id: item.id,
+            dateGroup,
+            type: "Note",
+            title: item.text ? (item.text.length > 60 ? `${item.text.slice(0, 60)}...` : item.text) : "Study Note",
+            summary: item.text || "",
+            time,
+            category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
+          };
+        });
+
+        setTimelineEntries([...formattedActivities, ...formattedNotes]);
       } catch (err) {
-        console.warn("Could not fetch timeline notes from backend API:", err);
+        console.warn("Could not fetch timeline items from backend API:", err);
       } finally {
         setLoading(false);
       }
     }
     loadTimeline();
+
+    window.addEventListener("activity-logged", loadTimeline);
+    return () => {
+      window.removeEventListener("activity-logged", loadTimeline);
+    };
   }, []);
 
   const filteredEntries = timelineEntries.filter(

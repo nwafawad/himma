@@ -37,16 +37,22 @@ export default function QuickCaptureModal() {
     if (!title.trim()) return;
 
     try {
+      const actType = type === "url" ? "article" : "other";
+      const validUrl = type === "url" && title.startsWith("http") ? title : undefined;
+
       await fetchApi("/activities", {
         method: "POST",
         body: JSON.stringify({
           title,
-          summary: content || title,
-          category,
-          type: type === "note" ? "Reflection Note" : "URL Resource",
-          link: type === "url" ? title : undefined,
+          type: actType,
+          source: "manual",
+          url: validUrl,
+          tags: [category.toLowerCase()],
         }),
       });
+
+      // Notify ActivityFeed to refresh live entries
+      window.dispatchEvent(new CustomEvent("activity-logged"));
     } catch (err) {
       console.warn("Backend unavailable; performing local capture simulation:", err);
     }

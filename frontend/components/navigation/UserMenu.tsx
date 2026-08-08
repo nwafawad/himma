@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import * as Popover from "@radix-ui/react-popover";
 import { User, Settings, LogOut, ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { fetchApi } from "@/lib/api";
 
 export default function UserMenu() {
   const router = useRouter();
@@ -25,7 +26,13 @@ export default function UserMenu() {
             session.user.email?.split("@")[0] ||
             "Scholar"
           );
-          setUserAvatar(session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null);
+
+          // Fetch database profile avatar first to ensure custom uploads take priority
+          const profileRes = await fetchApi<{ data?: { avatarUrl?: string } }>("/profile").catch(() => null);
+          const dbAvatar = profileRes?.data?.avatarUrl;
+          const oauthAvatar = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture;
+
+          setUserAvatar(dbAvatar || oauthAvatar || null);
         } else {
           // Check local token fallback if mock authentication is present
           const localToken = typeof window !== "undefined" ? localStorage.getItem("momentum_token") : null;

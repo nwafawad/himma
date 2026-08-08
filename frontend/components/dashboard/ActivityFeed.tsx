@@ -21,9 +21,20 @@ export default function ActivityFeed() {
   useEffect(() => {
     async function loadActivities() {
       try {
-        const data = await fetchApi<{ data: ActivityItem[] } | ActivityItem[]>("/activities");
-        const list = Array.isArray(data) ? data : data.data || [];
-        setActivities(list);
+        const response = await fetchApi<{ data?: any[] } | any[]>("/activities");
+        const list = Array.isArray(response) ? response : response?.data || [];
+        
+        const mappedList: ActivityItem[] = list.map((item: any) => ({
+          id: item.id,
+          title: item.title,
+          summary: item.summary || item.title,
+          category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
+          type: item.type ? item.type.toUpperCase() : "ACTIVITY",
+          time: item.consumedAt ? new Date(item.consumedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Today",
+          link: item.url,
+        }));
+
+        setActivities(mappedList);
       } catch (err) {
         console.warn("Could not fetch activities from backend API:", err);
       } finally {
@@ -31,6 +42,11 @@ export default function ActivityFeed() {
       }
     }
     loadActivities();
+
+    window.addEventListener("activity-logged", loadActivities);
+    return () => {
+      window.removeEventListener("activity-logged", loadActivities);
+    };
   }, []);
 
   return (

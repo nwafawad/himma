@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { fetchApi } from "@/lib/api";
 import { supabase } from "@/lib/supabaseClient";
-import { User, Target, Sparkles, Download, Trash2, Check, Loader2, Mail, Calendar, ShieldCheck } from "lucide-react";
+import { User, Target, Sparkles, Download, Trash2, Check, Loader2, Mail, Calendar, ShieldCheck, Camera } from "lucide-react";
 
 interface ProfileData {
   targetPath: string | null;
@@ -16,6 +16,8 @@ export default function ProfilePage() {
   const [userName, setUserName] = useState<string>("Momentum Scholar");
   const [createdAt, setCreatedAt] = useState<string>("August 2026");
   const [provider, setProvider] = useState<string>("Google");
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Form states
   const [targetPath, setTargetPath] = useState("");
@@ -30,20 +32,14 @@ export default function ProfilePage() {
   useEffect(() => {
     async function loadUserDataAndProfile() {
       try {
-        // Load user auth metadata from Supabase
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setUserEmail(session.user.email || "user@momentum.app");
-          setUserName(session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Momentum Scholar");
-          if (session.user.created_at) {
-            setCreatedAt(new Date(session.user.created_at).toLocaleDateString("en-US", { month: "long", year: "numeric" }));
-          }
-          setProvider(session.user.app_metadata?.provider || "email");
-        }
-
-        // Fetch user trajectory profile from backend API
-        const response = await fetchApi<{ data: ProfileData }>("/profile").catch(() => null);
+        // Fetch user trajectory profile from backend API first
+        const response = await fetchApi<{ data: ProfileData & { avatarUrl?: string } }>("/profile").catch(() => null);
+        
+        let dbAvatar: string | null = null;
         if (response?.data) {
+          if (response.data.avatarUrl) {
+            dbAvatar = response.data.avatarUrl;
+          }
           setTargetPath(response.data.targetPath || "Staff Systems Architect");
           setSkillsInput((response.data.currentSkills || ["Go", "Distributed Systems", "Kafka", "Rust"]).join(", "));
           setInterestsInput((response.data.interests || ["High-throughput microservices", "Consensus algorithms"]).join(", "));
@@ -52,6 +48,24 @@ export default function ProfilePage() {
           setTargetPath("Staff Systems Architect");
           setSkillsInput("Go, Distributed Systems, Kafka, Rust, PostgreSQL");
           setInterestsInput("High-throughput microservices, Consensus algorithms, Event Sourcing");
+        }
+
+        // Load user auth metadata from Supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setUserEmail(session.user.email || "user@momentum.app");
+          setUserName(session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Momentum Scholar");
+          
+          const oauthAvatar = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null;
+          // Prioritize database avatar, fall back to OAuth avatar
+          setUserAvatar(dbAvatar || oauthAvatar);
+
+          if (session.user.created_at) {
+            setCreatedAt(new Date(session.user.created_at).toLocaleDateString("en-US", { month: "long", year: "numeric" }));
+          }
+          setProvider(session.user.app_metadata?.provider || "email");
+        } else if (dbAvatar) {
+          setUserAvatar(dbAvatar);
         }
       } catch (err) {
         console.warn("Using local profile state defaults:", err);
@@ -62,6 +76,50 @@ export default function ProfilePage() {
 
     loadUserDataAndProfile();
   }, []);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingAvatar(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id || "demo-user";
+      const fileExt = file.name.split(".").pop();
+      const filePath = `avatars/${userId}-${Date.now()}.${fileExt}`;
+
+      // Upload to Supabase Storage bucket 'avatars'
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true });
+
+      let publicUrl = "";
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
+        publicUrl = urlData.publicUrl;
+      } else {
+        // Fallback for local preview if Supabase Storage bucket is not publicly initialized
+        publicUrl = URL.createObjectURL(file);
+      }
+
+      setUserAvatar(publicUrl);
+
+      // Persist avatarUrl to backend database
+      await fetchApi("/profile", {
+        method: "PUT",
+        body: JSON.stringify({
+          avatarUrl: publicUrl,
+          targetPath,
+          currentSkills: skillsInput.split(",").map((s) => s.trim()).filter(Boolean),
+          interests: interestsInput.split(",").map((i) => i.trim()).filter(Boolean),
+        }),
+      }).catch(() => null);
+    } catch (err) {
+      console.warn("Error uploading profile image:", err);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,6 +133,7 @@ export default function ProfilePage() {
       await fetchApi("/profile", {
         method: "PUT",
         body: JSON.stringify({
+          avatarUrl: userAvatar,
           targetPath,
           currentSkills: skillsArray,
           interests: interestsArray,
@@ -137,107 +196,169 @@ export default function ProfilePage() {
         </p>
       </div>
 
-      {/* User Identity Card */}
-      <div className="p-6 sm:p-8 bg-card border border-border-light rounded-2xl shadow-sm flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
-        <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-5 text-center sm:text-left">
-          <div className="w-20 h-20 rounded-full bg-charcoal text-white flex items-center justify-center font-serif text-2xl tracking-wider shadow-md shrink-0">
-            {initials || "ME"}
+      {/* Unified Profile Edit Form */}
+      <form onSubmit={handleSaveProfile} className="space-y-8">
+        {/* Section 1: Personal Identity & Avatar */}
+        <div className="p-6 sm:p-8 bg-card border border-border-light rounded-2xl shadow-sm space-y-6">
+          <div className="border-b border-border-light pb-3">
+            <h3 className="font-serif italic text-2xl text-charcoal flex items-center gap-2">
+              <User className="w-5 h-5 text-charcoal-muted" />
+              Personal Identity
+            </h3>
+            <p className="text-xs text-charcoal-muted mt-0.5">
+              Update your avatar picture and display name across your workspace.
+            </p>
           </div>
-          <div className="space-y-1">
-            <h2 className="font-serif italic text-2xl text-charcoal">{userName}</h2>
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs text-charcoal-muted font-sans">
-              <span className="flex items-center gap-1">
-                <Mail className="w-3.5 h-3.5" />
-                {userEmail}
-              </span>
-              <span>•</span>
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" />
-                Member since {createdAt}
-              </span>
-            </div>
-            <div className="pt-2 flex items-center justify-center sm:justify-start gap-2">
-              <span className="text-[10px] uppercase font-semibold tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3" />
-                Authenticated via {provider}
-              </span>
+
+          <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-5 text-center sm:text-left w-full">
+              {/* Avatar Picture with Camera Upload Overlay */}
+              <div className="relative group shrink-0">
+                {userAvatar ? (
+                  <img
+                    src={userAvatar}
+                    alt={userName}
+                    className="w-24 h-24 rounded-full object-cover shadow-md border border-border-light"
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-charcoal text-white flex items-center justify-center font-serif text-2xl tracking-wider shadow-md">
+                    {initials || "ME"}
+                  </div>
+                )}
+                
+                {/* Upload Button Overlay */}
+                <label
+                  htmlFor="avatar-upload-input"
+                  className="absolute inset-0 rounded-full bg-charcoal/60 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-[10px] font-medium"
+                >
+                  {uploadingAvatar ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Camera className="w-5 h-5 mb-0.5" />
+                      <span>Change</span>
+                    </>
+                  )}
+                </label>
+                <input
+                  id="avatar-upload-input"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                  disabled={uploadingAvatar}
+                  className="hidden"
+                />
+              </div>
+
+              <div className="space-y-3 flex-1 w-full">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1">
+                    Display Name / Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    placeholder="Alex Mercer"
+                    className="w-full max-w-md px-3.5 py-2 text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal focus:outline-none focus:border-charcoal transition-colors"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs text-charcoal-muted font-sans">
+                  <span className="flex items-center gap-1">
+                    <Mail className="w-3.5 h-3.5" />
+                    {userEmail}
+                  </span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5" />
+                    Member since {createdAt}
+                  </span>
+                  <span>•</span>
+                  <span className="text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3" />
+                    {provider}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Trajectory & Skills Form */}
-      <form onSubmit={handleSaveProfile} className="bg-card border border-border-light rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
-        <div className="border-b border-border-light pb-3">
-          <h3 className="font-serif italic text-2xl text-charcoal flex items-center gap-2">
-            <Target className="w-5 h-5 text-charcoal-muted" />
-            Career Trajectory & Learning Focus
-          </h3>
-          <p className="text-xs text-charcoal-muted mt-0.5">
-            Your target career trajectory is evaluated by the AI engine against your daily logged activity.
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1">
-              Target Career Path / Goal Role
-            </label>
-            <input
-              type="text"
-              value={targetPath}
-              onChange={(e) => setTargetPath(e.target.value)}
-              placeholder="e.g. Staff Systems Architect"
-              className="w-full px-3.5 py-2.5 text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal focus:outline-none focus:border-charcoal transition-colors"
-            />
+        {/* Section 2: Trajectory & Skills Form */}
+        <div className="bg-card border border-border-light rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
+          <div className="border-b border-border-light pb-3">
+            <h3 className="font-serif italic text-2xl text-charcoal flex items-center gap-2">
+              <Target className="w-5 h-5 text-charcoal-muted" />
+              Career Trajectory & Learning Focus
+            </h3>
+            <p className="text-xs text-charcoal-muted mt-0.5">
+              Your target career trajectory is evaluated by the AI engine against your daily logged activity.
+            </p>
           </div>
 
-          <div>
-            <label className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1">
-              Current Core Skills (Comma Separated)
-            </label>
-            <input
-              type="text"
-              value={skillsInput}
-              onChange={(e) => setSkillsInput(e.target.value)}
-              placeholder="Go, Rust, Distributed Systems, Kafka..."
-              className="w-full px-3.5 py-2.5 text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal focus:outline-none focus:border-charcoal transition-colors"
-            />
-          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1">
+                Target Career Path / Goal Role
+              </label>
+              <input
+                type="text"
+                value={targetPath}
+                onChange={(e) => setTargetPath(e.target.value)}
+                placeholder="e.g. Staff Systems Architect"
+                className="w-full px-3.5 py-2.5 text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal focus:outline-none focus:border-charcoal transition-colors"
+              />
+            </div>
 
-          <div>
-            <label className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1">
-              Learning Focus & Technical Interests
-            </label>
-            <textarea
-              rows={3}
-              value={interestsInput}
-              onChange={(e) => setInterestsInput(e.target.value)}
-              placeholder="High-throughput microservices, consensus algorithms..."
-              className="w-full px-3.5 py-2.5 text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal focus:outline-none focus:border-charcoal transition-colors resize-none"
-            />
-          </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1">
+                Current Core Skills (Comma Separated)
+              </label>
+              <input
+                type="text"
+                value={skillsInput}
+                onChange={(e) => setSkillsInput(e.target.value)}
+                placeholder="Go, Rust, Distributed Systems, Kafka..."
+                className="w-full px-3.5 py-2.5 text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal focus:outline-none focus:border-charcoal transition-colors"
+              />
+            </div>
 
-          <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center gap-1.5 rounded-full bg-charcoal hover:bg-black text-white px-6 py-2.5 text-xs font-medium transition-all shadow active:scale-95 disabled:opacity-75"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Saving...</span>
-                </>
-              ) : savedSuccess ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Profile Updated!</span>
-                </>
-              ) : (
-                <span>Save Trajectory Profile</span>
-              )}
-            </button>
+            <div>
+              <label className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1">
+                Learning Focus & Technical Interests
+              </label>
+              <textarea
+                rows={3}
+                value={interestsInput}
+                onChange={(e) => setInterestsInput(e.target.value)}
+                placeholder="High-throughput microservices, consensus algorithms..."
+                className="w-full px-3.5 py-2.5 text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal focus:outline-none focus:border-charcoal transition-colors resize-none"
+              />
+            </div>
+
+            {/* Global Update Profile Action Button */}
+            <div className="flex justify-end pt-4 border-t border-border-light">
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 rounded-full bg-charcoal hover:bg-black text-white px-7 py-3 text-xs font-semibold uppercase tracking-wider transition-all shadow-md active:scale-95 disabled:opacity-75"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Updating Profile...</span>
+                  </>
+                ) : savedSuccess ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    <span>Profile Saved!</span>
+                  </>
+                ) : (
+                  <span>Update Profile</span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </form>
