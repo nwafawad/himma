@@ -59,7 +59,7 @@ self.addEventListener("push", (event) => {
   try {
     const payload = event.data.json();
     const title = payload.title || "Momentum Reminder";
-    const options: NotificationOptions = {
+    const options = {
       body: payload.body || "Time for your daily reflection and study log.",
       icon: "/icon-192.png",
       badge: "/icon-192.png",
@@ -68,7 +68,7 @@ self.addEventListener("push", (event) => {
         { action: "open", title: "Open App" },
         { action: "dismiss", title: "Dismiss" },
       ],
-    };
+    } as NotificationOptions;
 
     event.waitUntil(self.registration.showNotification(title, options));
   } catch (err) {

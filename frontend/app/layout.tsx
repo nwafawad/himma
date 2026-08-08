@@ -6,6 +6,8 @@ import QuickCaptureModal from "@/components/ui/QuickCaptureModal";
 import PageTransition from "@/components/ui/PageTransition";
 import FloatingLogButton from "@/components/ui/FloatingLogButton";
 
+import InstallPromptBanner from "@/components/pwa/InstallPromptBanner";
+
 const serifFont = Instrument_Serif({
   weight: ["400"],
   style: ["normal", "italic"],
@@ -21,6 +23,22 @@ const sansFont = Inter({
 export const metadata: Metadata = {
   title: "Momentum — Quiet reflection for self-directed learners",
   description: "Log study activity and view AI-generated career direction insights.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Momentum",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+export const viewport = {
+  themeColor: "#6366F1",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -37,6 +55,7 @@ export default function RootLayout({
         </main>
         <QuickCaptureModal />
         <FloatingLogButton />
+        <InstallPromptBanner />
       </body>
     </html>
   );
