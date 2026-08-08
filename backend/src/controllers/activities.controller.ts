@@ -33,7 +33,7 @@ export const getActivities = async (req: Request, res: Response, next: NextFunct
       includeTotal
     );
 
-    res.setHeader('Cache-Control', 'private, max-age=10, stale-while-revalidate=60');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     return res.json({
       data: activities,
       pagination: {

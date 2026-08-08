@@ -148,21 +148,11 @@ export default function ImportModal() {
       setStep("review");
     } catch (err: any) {
       console.warn("Backend import ingestion error:", err);
-      const simulatedCandidates: Candidate[] = tab === "urls"
-        ? pastedUrls.split("\n").filter((u) => u.trim()).map((u, i) => ({
-            id: `sim-${i}`,
-            title: u.trim().replace(/^https?:\/\//, "").split("/")[0] + " study log",
-            url: u.trim(),
-            type: u.includes("github") ? "repository" : u.includes("youtube") ? "video" : "article",
-          }))
-        : [
-            { id: "sim-1", title: "React Suspense Architecture", url: "https://react.dev", type: "article" },
-            { id: "sim-2", title: "Distributed Systems Course", url: "https://coursera.org", type: "course" },
-          ];
-
-      setCandidates(simulatedCandidates);
-      setSelectedIds(new Set(simulatedCandidates.map((c) => c.id)));
-      setStep("review");
+      if (err.message && (err.message.includes("INVALID_") || err.message.includes("NO_VALID_ENTRIES") || err.message.includes("400") || err.message.includes("422"))) {
+        setErrorMessage(err.message);
+        return;
+      }
+      setErrorMessage(err.message || "Failed to process import file. Please verify file format.");
     } finally {
       setLoading(false);
     }

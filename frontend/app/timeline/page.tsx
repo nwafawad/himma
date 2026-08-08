@@ -101,38 +101,9 @@ export default function TimelinePage() {
       loadTimeline();
     }, 15000);
 
-    function handleActivityLogged(event: Event) {
-      const customEvt = event as CustomEvent;
-      if (customEvt.detail && customEvt.detail.id) {
-        const now = new Date();
-        const dateGroup = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase();
-        const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        const item = customEvt.detail;
-
-        let mappedType: FilterType = "Article";
-        if (item.type === "article") mappedType = "Article";
-        else if (item.type === "video") mappedType = "Video";
-        else if (item.type === "course") mappedType = "Course";
-        else if (item.type === "repository") mappedType = "Repository";
-        else mappedType = "Note";
-
-        const newEntry: TimelineEntry = {
-          id: item.id,
-          dateGroup,
-          type: mappedType,
-          title: item.title,
-          summary: item.title,
-          time,
-          category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
-          link: item.url,
-        };
-
-        setTimelineEntries((prev) => {
-          const updated = [newEntry, ...prev.filter((e) => e.id !== newEntry.id)];
-          timelineCache = updated;
-          return updated;
-        });
-      }
+    function handleActivityLogged() {
+      // Invalidate in-memory cache and re-fetch clean timeline dataset from backend
+      timelineCache = null;
       loadTimeline();
     }
 

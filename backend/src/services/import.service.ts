@@ -32,9 +32,25 @@ const inferActivityType = (url?: string): ActivityType => {
 };
 
 /**
+ * Helper to split an array into smaller sub-arrays (chunks) of a specified maximum size.
+ * Prevents exceeding database bind variable limits (e.g., PostgreSQL 32,767 parameter cap).
+ */
+function chunkArray<T>(array: T[], chunkSize: number): T[][] {
+  if (!array.length || chunkSize <= 0) return [];
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+/**
  * Stages parsed import candidates into the `import_candidates` staging database table.
  * Candidates are staged in a `pending` status after deduplicating against existing saved activities,
  * existing pending candidates, and within the incoming batch itself.
+ *
+ * Query execution uses chunked batches (2,000 items max) to safely support large browser exports
+ * with 20,000+ history records without exceeding PostgreSQL bind parameter limits.
  *
  * @param userId - Unique identifier of the user staging the items.
  * @param items - Array of candidate items containing title, optional URL, type, and consumption timestamp.
@@ -46,33 +62,70 @@ export const stageCandidates = async (
 ) => {
   const totalParsed = items.length;
 
-  // 1. Extract batch URLs and titles to perform O(K) targeted database lookup (supporting millions of DB rows)
+  // 1. Extract batch URLs and titles for targeted database lookup
   const batchRawUrls = items.map((i) => (i.url ? i.url.trim() : null)).filter((u): u is string => Boolean(u));
   const batchTitles = items.map((i) => i.title.trim()).filter(Boolean);
 
-  const [existingActivities, existingCandidates] = await Promise.all([
-    prisma.activityEntry.findMany({
-      where: {
-        userId,
-        OR: [
-          ...(batchRawUrls.length > 0 ? [{ url: { in: batchRawUrls } }] : []),
-          ...(batchTitles.length > 0 ? [{ title: { in: batchTitles } }] : []),
-        ],
-      },
-      select: { url: true, title: true },
-    }),
-    prisma.importCandidate.findMany({
-      where: {
-        userId,
-        status: 'pending',
-        OR: [
-          ...(batchRawUrls.length > 0 ? [{ url: { in: batchRawUrls } }] : []),
-          ...(batchTitles.length > 0 ? [{ title: { in: batchTitles } }] : []),
-        ],
-      },
-      select: { url: true, title: true },
-    }),
+  // Chunk queries into batches of 2,000 to remain well within Postgres 32,767 parameter limit (max 4,000 params per chunk)
+  const maxChunkSize = 2000;
+  const numChunks = Math.max(
+    Math.ceil(batchRawUrls.length / maxChunkSize),
+    Math.ceil(batchTitles.length / maxChunkSize),
+    1
+  );
+
+  const existingActivities: Array<{ url: string | null; title: string }> = [];
+  const existingCandidates: Array<{ url: string | null; title: string }> = [];
+
+  const activityPromises = [];
+  const candidatePromises = [];
+
+  for (let i = 0; i < numChunks; i++) {
+    const urlSub = batchRawUrls.slice(i * maxChunkSize, (i + 1) * maxChunkSize);
+    const titleSub = batchTitles.slice(i * maxChunkSize, (i + 1) * maxChunkSize);
+
+    if (urlSub.length === 0 && titleSub.length === 0) continue;
+
+    activityPromises.push(
+      prisma.activityEntry.findMany({
+        where: {
+          userId,
+          OR: [
+            ...(urlSub.length > 0 ? [{ url: { in: urlSub } }] : []),
+            ...(titleSub.length > 0 ? [{ title: { in: titleSub } }] : []),
+          ],
+        },
+        select: { url: true, title: true },
+      })
+    );
+
+    candidatePromises.push(
+      prisma.importCandidate.findMany({
+        where: {
+          userId,
+          status: 'pending',
+          OR: [
+            ...(urlSub.length > 0 ? [{ url: { in: urlSub } }] : []),
+            ...(titleSub.length > 0 ? [{ title: { in: titleSub } }] : []),
+          ],
+        },
+        select: { url: true, title: true },
+      })
+    );
+  }
+
+  const [activityResults, candidateResults] = await Promise.all([
+    Promise.all(activityPromises),
+    Promise.all(candidatePromises),
   ]);
+
+  for (const resList of activityResults) {
+    existingActivities.push(...resList);
+  }
+
+  for (const resList of candidateResults) {
+    existingCandidates.push(...resList);
+  }
 
   const existingCanonicalUrls = new Set<string>();
   const existingNormalizedTitles = new Set<string>();
@@ -132,11 +185,14 @@ export const stageCandidates = async (
     });
   }
 
-  // 3. Create staging records for unique items
+  // 3. Create staging records for unique items in sub-chunks of 1,000 items
   if (candidatesData.length > 0) {
-    await prisma.importCandidate.createMany({
-      data: candidatesData,
-    });
+    const dataChunks = chunkArray(candidatesData, 1000);
+    for (const chunk of dataChunks) {
+      await prisma.importCandidate.createMany({
+        data: chunk,
+      });
+    }
   }
 
   const pendingCandidates = await prisma.importCandidate.findMany({
@@ -172,7 +228,9 @@ const isNoiseUrl = (urlStr?: string): boolean => {
     lower.includes('/oauth') ||
     lower.includes('/auth/') ||
     lower.includes('facebook.com') ||
-    lower.includes('instagram.com')
+    lower.includes('instagram.com') ||
+    lower.includes('gmail.com') ||
+    lower.includes('mail.google.com')
   );
 };
 
@@ -193,14 +251,37 @@ export const parseAndStageBrowserHistory = async (userId: string, fileContent: s
     throw new Error('INVALID_FILE_FORMAT: Uploaded file is not valid JSON.');
   }
 
-  if (!Array.isArray(parsedRaw)) {
-    throw new Error('INVALID_SCHEMA: Browser history export must be a JSON array of entries.');
+  let entriesArray: any[] | null = null;
+
+  if (Array.isArray(parsedRaw)) {
+    entriesArray = parsedRaw;
+  } else if (parsedRaw && typeof parsedRaw === 'object') {
+    // Automatically detect common browser export wrapper keys or search for nested arrays
+    if (Array.isArray(parsedRaw['Browser History'])) {
+      entriesArray = parsedRaw['Browser History'];
+    } else if (Array.isArray(parsedRaw['history'])) {
+      entriesArray = parsedRaw['history'];
+    } else if (Array.isArray(parsedRaw['entries'])) {
+      entriesArray = parsedRaw['entries'];
+    } else if (Array.isArray(parsedRaw['items'])) {
+      entriesArray = parsedRaw['items'];
+    } else {
+      // Fallback: find the first array property inside the object
+      const foundArray = Object.values(parsedRaw).find((val) => Array.isArray(val));
+      if (Array.isArray(foundArray)) {
+        entriesArray = foundArray as any[];
+      }
+    }
+  }
+
+  if (!entriesArray) {
+    throw new Error('INVALID_SCHEMA: Uploaded JSON does not contain an array of history entries (e.g. [ { "url": "...", "title": "..." } ]).');
   }
 
   // Filter & normalize entries from large exports (e.g. 9MB files with 30k+ history logs)
   const candidateItems: Array<{ title: string; url?: string; type?: ActivityType; consumedAt?: Date }> = [];
 
-  for (const entry of parsedRaw) {
+  for (const entry of entriesArray) {
     const rawUrl = entry?.url || entry?.uri || entry?.href;
     if (!rawUrl || isNoiseUrl(rawUrl)) continue;
 
@@ -221,8 +302,8 @@ export const parseAndStageBrowserHistory = async (userId: string, fileContent: s
       consumedAt,
     });
 
-    // Limit candidate staging pool to top 300 relevant learning items to keep UI & DB fast
-    if (candidateItems.length >= 300) break;
+    // Limit candidate staging pool to top 20,000 relevant learning items
+    if (candidateItems.length >= 20000) break;
   }
 
   if (candidateItems.length === 0) {
@@ -328,18 +409,26 @@ export const confirmImportCandidates = async (
   excludedCandidateIds: string[] = []
 ) => {
   return prisma.$transaction(async (tx) => {
-    // Reject excluded candidates
+    // Reject excluded candidates in sub-chunks of 1,000
     if (excludedCandidateIds.length > 0) {
-      await tx.importCandidate.updateMany({
-        where: { id: { in: excludedCandidateIds }, userId },
-        data: { status: 'rejected' },
-      });
+      const excludedChunks = chunkArray(excludedCandidateIds, 1000);
+      for (const chunk of excludedChunks) {
+        await tx.importCandidate.updateMany({
+          where: { id: { in: chunk }, userId },
+          data: { status: 'rejected' },
+        });
+      }
     }
 
-    // Fetch approved candidates
-    const candidatesToApprove = await tx.importCandidate.findMany({
-      where: { id: { in: approvedCandidateIds }, userId, status: 'pending' },
-    });
+    // Fetch approved candidates in sub-chunks of 1,000
+    const approvedChunks = chunkArray(approvedCandidateIds, 1000);
+    const candidatesToApprove: any[] = [];
+    for (const chunk of approvedChunks) {
+      const found = await tx.importCandidate.findMany({
+        where: { id: { in: chunk }, userId, status: 'pending' },
+      });
+      candidatesToApprove.push(...found);
+    }
 
     if (candidatesToApprove.length === 0) {
       return [];
@@ -362,10 +451,14 @@ export const confirmImportCandidates = async (
       createdActivities.push(activity);
     }
 
-    await tx.importCandidate.updateMany({
-      where: { id: { in: candidatesToApprove.map((c) => c.id) }, userId },
-      data: { status: 'approved' },
-    });
+    // Mark candidates as approved in sub-chunks of 1,000
+    const approveIdChunks = chunkArray(candidatesToApprove.map((c) => c.id), 1000);
+    for (const chunk of approveIdChunks) {
+      await tx.importCandidate.updateMany({
+        where: { id: { in: chunk }, userId },
+        data: { status: 'approved' },
+      });
+    }
 
     return createdActivities;
   });
