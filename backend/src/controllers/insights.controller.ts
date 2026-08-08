@@ -20,6 +20,7 @@ export const getInsightRuns = async (req: Request, res: Response, next: NextFunc
 
   try {
     const { insights, total } = await insightsService.listInsightRuns(userId, limit, offset);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     return res.json({
       data: insights,
       pagination: {
