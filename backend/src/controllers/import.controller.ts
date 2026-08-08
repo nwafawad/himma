@@ -21,12 +21,13 @@ export const uploadHistoryFile = async (req: Request, res: Response, next: NextF
     }
 
     const fileContent = req.file.buffer.toString('utf-8');
-    const candidates = await importService.parseAndStageBrowserHistory(userId, fileContent);
+    const result = await importService.parseAndStageBrowserHistory(userId, fileContent);
 
     return res.status(202).json({
       message: 'Browser history file uploaded and candidates staged for review.',
-      stagedCount: candidates.length,
-      data: candidates,
+      stagedCount: result.candidates.length,
+      data: result.candidates,
+      stats: result.stats,
     });
   } catch (error: any) {
     if (error.message && error.message.startsWith('INVALID_')) {
@@ -47,12 +48,13 @@ export const importPastedUrls = async (req: Request, res: Response, next: NextFu
   const userId = req.user!.id;
   const { urls } = req.body;
   try {
-    const candidates = await importService.parseAndStagePastedUrls(userId, urls);
+    const result = await importService.parseAndStagePastedUrls(userId, urls);
 
     return res.status(202).json({
       message: 'Pasted URLs staged for review.',
-      stagedCount: candidates.length,
-      data: candidates,
+      stagedCount: result.candidates.length,
+      data: result.candidates,
+      stats: result.stats,
     });
   } catch (error) {
     next(error);

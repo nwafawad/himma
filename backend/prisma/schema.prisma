@@ -90,6 +90,7 @@ model ActivityEntry {
   notesLinked NoteEntry[]
 
   @@index([userId])
+  @@index([userId, url])
   @@index([userId, consumedAt(sort: Desc)])
   @@index([userId, type, consumedAt(sort: Desc)])
   @@map("activity_entries")
@@ -147,6 +148,7 @@ model ImportCandidate {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
+  @@index([userId, url])
   @@map("import_candidates")
 }
 

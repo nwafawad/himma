@@ -5,7 +5,7 @@
 
 import { prisma } from '../config/prisma.js';
 import { ActivityType, ActivitySource } from '@prisma/client';
-import { browserHistoryExportSchema } from '../validators/import.schema.js';
+import { canonicalizeUrl, normalizeTitle } from '../utils/url.js';
 
 /**
  * Infers an activity type enum based on domain/keyword patterns in a given URL.
@@ -33,35 +33,125 @@ const inferActivityType = (url?: string): ActivityType => {
 
 /**
  * Stages parsed import candidates into the `import_candidates` staging database table.
- * Candidates are staged in a `pending` status and are NEVER saved to `ActivityEntry` records directly.
+ * Candidates are staged in a `pending` status after deduplicating against existing saved activities,
+ * existing pending candidates, and within the incoming batch itself.
  *
  * @param userId - Unique identifier of the user staging the items.
  * @param items - Array of candidate items containing title, optional URL, type, and consumption timestamp.
- * @returns Array of pending import candidate records for the user.
+ * @returns Object containing array of pending import candidate records and deduplication statistics.
  */
 export const stageCandidates = async (
   userId: string,
   items: Array<{ title: string; url?: string; type?: ActivityType; consumedAt?: Date }>
 ) => {
-  const candidatesData = items.map((item) => ({
-    userId,
-    title: item.title,
-    url: item.url || null,
-    type: item.type || inferActivityType(item.url),
-    source: ActivitySource.import,
-    consumedAt: item.consumedAt || new Date(),
-    status: 'pending' as const,
-  }));
+  const totalParsed = items.length;
 
-  // Create staging records
-  await prisma.importCandidate.createMany({
-    data: candidatesData,
-  });
+  // 1. Extract batch URLs and titles to perform O(K) targeted database lookup (supporting millions of DB rows)
+  const batchRawUrls = items.map((i) => (i.url ? i.url.trim() : null)).filter((u): u is string => Boolean(u));
+  const batchTitles = items.map((i) => i.title.trim()).filter(Boolean);
 
-  return prisma.importCandidate.findMany({
+  const [existingActivities, existingCandidates] = await Promise.all([
+    prisma.activityEntry.findMany({
+      where: {
+        userId,
+        OR: [
+          ...(batchRawUrls.length > 0 ? [{ url: { in: batchRawUrls } }] : []),
+          ...(batchTitles.length > 0 ? [{ title: { in: batchTitles } }] : []),
+        ],
+      },
+      select: { url: true, title: true },
+    }),
+    prisma.importCandidate.findMany({
+      where: {
+        userId,
+        status: 'pending',
+        OR: [
+          ...(batchRawUrls.length > 0 ? [{ url: { in: batchRawUrls } }] : []),
+          ...(batchTitles.length > 0 ? [{ title: { in: batchTitles } }] : []),
+        ],
+      },
+      select: { url: true, title: true },
+    }),
+  ]);
+
+  const existingCanonicalUrls = new Set<string>();
+  const existingNormalizedTitles = new Set<string>();
+
+  for (const act of existingActivities) {
+    if (act.url) existingCanonicalUrls.add(canonicalizeUrl(act.url));
+    if (act.title) existingNormalizedTitles.add(normalizeTitle(act.title));
+  }
+
+  for (const cand of existingCandidates) {
+    if (cand.url) existingCanonicalUrls.add(canonicalizeUrl(cand.url));
+    if (cand.title) existingNormalizedTitles.add(normalizeTitle(cand.title));
+  }
+
+  // 2. Perform in-memory deduplication against existing DB items and within incoming batch
+  const batchCanonicalUrls = new Set<string>();
+  const batchNormalizedTitles = new Set<string>();
+
+  const candidatesData: Array<{
+    userId: string;
+    title: string;
+    url: string | null;
+    type: ActivityType;
+    source: ActivitySource;
+    consumedAt: Date;
+    status: 'pending';
+  }> = [];
+
+  let duplicatesSkipped = 0;
+
+  for (const item of items) {
+    const rawUrl = item.url ? item.url.trim() : null;
+    const canUrl = rawUrl ? canonicalizeUrl(rawUrl) : '';
+    const normTitle = normalizeTitle(item.title);
+
+    // Duplicate check
+    const isDuplicateUrl = canUrl !== '' && (existingCanonicalUrls.has(canUrl) || batchCanonicalUrls.has(canUrl));
+    const isDuplicateTitle = !canUrl && normTitle !== '' && (existingNormalizedTitles.has(normTitle) || batchNormalizedTitles.has(normTitle));
+
+    if (isDuplicateUrl || isDuplicateTitle) {
+      duplicatesSkipped++;
+      continue;
+    }
+
+    // Register into batch tracking sets
+    if (canUrl) batchCanonicalUrls.add(canUrl);
+    if (normTitle) batchNormalizedTitles.add(normTitle);
+
+    candidatesData.push({
+      userId,
+      title: item.title,
+      url: rawUrl,
+      type: item.type || inferActivityType(rawUrl || undefined),
+      source: ActivitySource.import,
+      consumedAt: item.consumedAt || new Date(),
+      status: 'pending' as const,
+    });
+  }
+
+  // 3. Create staging records for unique items
+  if (candidatesData.length > 0) {
+    await prisma.importCandidate.createMany({
+      data: candidatesData,
+    });
+  }
+
+  const pendingCandidates = await prisma.importCandidate.findMany({
     where: { userId, status: 'pending' },
     orderBy: { createdAt: 'desc' },
   });
+
+  return {
+    candidates: pendingCandidates,
+    stats: {
+      totalParsed,
+      stagedCount: candidatesData.length,
+      duplicatesSkipped,
+    },
+  };
 };
 
 /**

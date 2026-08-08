@@ -51,6 +51,7 @@ export default function ImportModal() {
   const [filterType, setFilterType] = useState<string>("all");
   const [confirming, setConfirming] = useState(false);
   const [confirmedCount, setConfirmedCount] = useState(0);
+  const [dedupStats, setDedupStats] = useState<{ totalParsed: number; stagedCount: number; duplicatesSkipped: number } | null>(null);
 
   // Listen for custom trigger to open modal globally
   useEffect(() => {
@@ -77,6 +78,7 @@ export default function ImportModal() {
     setFilterType("all");
     setConfirming(false);
     setConfirmedCount(0);
+    setDedupStats(null);
   };
 
   // Handle File Selection
@@ -106,11 +108,14 @@ export default function ImportModal() {
         const formData = new FormData();
         formData.append("file", selectedFile);
 
-        const res = await fetchApi<{ data: Candidate[] }>("/import/upload", {
+        const res = await fetchApi<{ data: Candidate[]; stats?: { totalParsed: number; stagedCount: number; duplicatesSkipped: number } }>("/import/upload", {
           method: "POST",
           body: formData,
         });
         responseCandidates = res?.data || [];
+        if (res?.stats) {
+          setDedupStats(res.stats);
+        }
       } else {
         const urlList = pastedUrls
           .split("\n")
@@ -123,11 +128,14 @@ export default function ImportModal() {
           return;
         }
 
-        const res = await fetchApi<{ data: Candidate[] }>("/import/urls", {
+        const res = await fetchApi<{ data: Candidate[]; stats?: { totalParsed: number; stagedCount: number; duplicatesSkipped: number } }>("/import/urls", {
           method: "POST",
           body: JSON.stringify({ urls: urlList }),
         });
         responseCandidates = res?.data || [];
+        if (res?.stats) {
+          setDedupStats(res.stats);
+        }
       }
 
       if (responseCandidates.length === 0) {
@@ -487,6 +495,18 @@ export default function ImportModal() {
           {/* STEP 2: Review Candidate Staging Pool */}
           {step === "review" && (
             <div className="py-4 flex-1 flex flex-col min-h-0 space-y-4">
+              {/* Deduplication Summary Alert Banner */}
+              {dedupStats && dedupStats.duplicatesSkipped > 0 && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-between text-xs text-amber-900 shrink-0 shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>
+                      <strong>{dedupStats.duplicatesSkipped} duplicate{dedupStats.duplicatesSkipped === 1 ? '' : 's'} skipped</strong> (already saved or staged). Showing {dedupStats.stagedCount} unique candidate{dedupStats.stagedCount === 1 ? '' : 's'}.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Category Filter & Select All Bar */}
               <div className="flex flex-wrap items-center justify-between gap-2 shrink-0 pb-2 border-b border-border-light">
                 <div className="flex items-center space-x-1.5 overflow-x-auto">
