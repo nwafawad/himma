@@ -1,40 +1,59 @@
 # Dependencies
 node_modules/
-backend/node_modules/
-frontend/node_modules/
+**/node_modules/
 
-# Build Output
-dist/
-backend/dist/
+# Build Output & Caches
 .next/
-frontend/.next/
+**/.next/
 out/
-frontend/out/
+**/out/
+dist/
+**/dist/
+build/
+**/build/
+*.tsbuildinfo
+**/*.tsbuildinfo
+.turbo/
+.vercel/
 
-# Environment Variables
+# Environment Variables & Secrets
 .env
-.env.local
-.env.*.local
-backend/.env
-backend/.env.local
-frontend/.env
-frontend/.env.local
+.env.*
+!.env.example
+!**/.env.example
+**/.env
+**/.env.*
+
+# Testing & Coverage
+coverage/
+.nyc_output/
 
 # Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
 # System & OS Files
 .DS_Store
+.DS_Store?
 Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
 
 # IDE & Editor Files
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# Antigravity & AI scratch files
+# AI, Tooling & Generated Output
+graphify/
+graphify-out/
+graphify*
 scratch/
 .gemini/
+.antigravity/
+
 
