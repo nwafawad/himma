@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ExternalLink, Loader2, RotateCw } from "lucide-react";
+import { ExternalLink, Loader2, RotateCw, ChevronDown } from "lucide-react";
 import { fetchApi } from "@/lib/api";
 
 export interface ActivityItem {
@@ -13,22 +13,46 @@ export interface ActivityItem {
   type?: string;
   time?: string;
   link?: string;
+  consumedAt?: string;
 }
 
 // Module-level in-memory cache to guarantee zero-latency instant render on component remounts
 let activityFeedCache: ActivityItem[] | null = null;
+let activityFeedHasMoreCache: boolean = false;
+
+const formatDateLabel = (dateStr?: string): string => {
+  if (!dateStr) return "Today";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "Today";
+
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday = d.toDateString() === yesterday.toDateString();
+
+  const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  if (isToday) return `Today at ${timeStr}`;
+  if (isYesterday) return `Yesterday at ${timeStr}`;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+};
 
 export default function ActivityFeed() {
   const [activities, setActivities] = useState<ActivityItem[]>(activityFeedCache || []);
   const [loading, setLoading] = useState<boolean>(!activityFeedCache);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [hasMore, setHasMore] = useState<boolean>(activityFeedHasMoreCache);
 
   const loadActivities = useCallback(async (isManual = false) => {
     if (isManual && refreshing) return;
     if (isManual) setRefreshing(true);
     try {
-      const response = await fetchApi<{ data?: any[] } | any[]>("/activities?limit=10");
+      const response = await fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>("/activities?limit=15&offset=0");
       const list = Array.isArray(response) ? response : response?.data || [];
+      const hasMoreFlag = Array.isArray(response) ? false : Boolean(response?.pagination?.hasMore);
       
       const mappedList: ActivityItem[] = list.map((item: any) => ({
         id: item.id,
@@ -36,12 +60,15 @@ export default function ActivityFeed() {
         summary: item.summary || item.title,
         category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
         type: item.type ? item.type.toUpperCase() : "ACTIVITY",
-        time: item.consumedAt ? new Date(item.consumedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Today",
+        time: formatDateLabel(item.consumedAt),
         link: item.url,
+        consumedAt: item.consumedAt,
       }));
 
       activityFeedCache = mappedList;
+      activityFeedHasMoreCache = hasMoreFlag;
       setActivities(mappedList);
+      setHasMore(hasMoreFlag);
     } catch (err) {
       console.warn("Could not fetch activities from backend API:", err);
     } finally {
@@ -49,6 +76,43 @@ export default function ActivityFeed() {
       setRefreshing(false);
     }
   }, [refreshing]);
+
+  const loadMoreActivities = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const offset = activities.length;
+      const response = await fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>(`/activities?limit=15&offset=${offset}`);
+      const list = Array.isArray(response) ? response : response?.data || [];
+      const hasMoreFlag = Array.isArray(response) ? false : Boolean(response?.pagination?.hasMore);
+
+      const newMapped: ActivityItem[] = list.map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        summary: item.summary || item.title,
+        category: (item.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
+        type: item.type ? item.type.toUpperCase() : "ACTIVITY",
+        time: formatDateLabel(item.consumedAt),
+        link: item.url,
+        consumedAt: item.consumedAt,
+      }));
+
+      setActivities((prev) => {
+        const existingIds = new Set(prev.map((a) => a.id));
+        const filtered = newMapped.filter((a) => !existingIds.has(a.id));
+        const updated = [...prev, ...filtered];
+        activityFeedCache = updated;
+        return updated;
+      });
+
+      activityFeedHasMoreCache = hasMoreFlag;
+      setHasMore(hasMoreFlag);
+    } catch (err) {
+      console.warn("Could not fetch more activities:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     loadActivities();
@@ -58,24 +122,9 @@ export default function ActivityFeed() {
       loadActivities();
     }, 15000);
 
-    function handleActivityLogged(event: Event) {
-      const customEvt = event as CustomEvent;
-      if (customEvt.detail && customEvt.detail.id) {
-        const newItem: ActivityItem = {
-          id: customEvt.detail.id,
-          title: customEvt.detail.title,
-          summary: customEvt.detail.title,
-          category: (customEvt.detail.tags?.[0]?.toUpperCase() as any) || "ENGINEERING",
-          type: customEvt.detail.type ? customEvt.detail.type.toUpperCase() : "ACTIVITY",
-          time: "Just now",
-          link: customEvt.detail.url,
-        };
-        setActivities((prev) => {
-          const updated = [newItem, ...prev.filter((a) => a.id !== newItem.id)];
-          activityFeedCache = updated;
-          return updated;
-        });
-      }
+    function handleActivityLogged() {
+      // Invalidate in-memory cache and re-fetch clean dataset from backend
+      activityFeedCache = null;
       loadActivities();
     }
 
@@ -90,7 +139,7 @@ export default function ActivityFeed() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-serif italic text-2xl text-charcoal">
-          Today's Logged Activity
+          Logged Learning Activity
         </h3>
         <div className="flex items-center gap-3">
           <button
@@ -104,7 +153,7 @@ export default function ActivityFeed() {
           <div className="flex items-center gap-2">
             {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-charcoal-muted" />}
             <span className="text-xs text-charcoal-muted uppercase tracking-wider font-medium">
-              {activities.length} {activities.length === 1 ? "ENTRY" : "ENTRIES"} TODAY
+              {activities.length} {activities.length === 1 ? "ENTRY" : "ENTRIES"}
             </span>
           </div>
         </div>
@@ -124,7 +173,7 @@ export default function ActivityFeed() {
               exit={{ opacity: 0 }}
               className="p-6 rounded-2xl bg-card border border-border-light text-center text-sm text-charcoal-muted"
             >
-              No activities recorded yet. Press <span className="font-mono bg-card-muted px-1.5 py-0.5 rounded border border-border-subtle text-xs">⌘K</span> to capture your first entry.
+              No activities recorded yet. Click <span className="font-mono bg-card-muted px-1.5 py-0.5 rounded border border-border-subtle text-xs">Import Study History</span> to batch import entries.
             </motion.div>
           ) : (
             activities.map((item) => (
@@ -139,19 +188,26 @@ export default function ActivityFeed() {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1.5 flex-1">
-                    <div className="flex items-center gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-xs flex-wrap">
                       <span className="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-badge-driftBg text-badge-driftText">
                         {item.category}
                       </span>
                       <span className="text-charcoal-muted">•</span>
-                      <span className="text-charcoal-muted font-mono">{item.time || "Today"}</span>
+                      <span className="text-charcoal-muted font-mono font-medium">{item.time}</span>
                       <span className="text-charcoal-muted">•</span>
-                      <span className="text-charcoal-muted">{item.type || "Activity"}</span>
+                      <span className="text-charcoal-muted capitalize">{item.type?.toLowerCase() || "activity"}</span>
                     </div>
                     <h4 className="font-serif italic text-lg text-charcoal group-hover:text-black transition-colors flex items-center gap-1.5">
                       {item.title}
                       {item.link && (
-                        <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 transition-opacity text-charcoal-muted inline" />
+                        <a
+                          href={item.link}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-charcoal-muted hover:text-charcoal"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 transition-opacity text-charcoal-muted inline" />
+                        </a>
                       )}
                     </h4>
                     <p className="text-sm text-charcoal-muted leading-relaxed">
@@ -163,6 +219,30 @@ export default function ActivityFeed() {
             ))
           )}
         </AnimatePresence>
+
+        {/* Load More Pagination Button */}
+        {hasMore && (
+          <div className="pt-2 text-center">
+            <button
+              type="button"
+              onClick={loadMoreActivities}
+              disabled={loadingMore}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-card hover:bg-card-muted border border-border-light text-charcoal text-xs font-medium transition-all shadow-2xs hover:shadow-xs active:scale-95 disabled:opacity-50"
+            >
+              {loadingMore ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Loading older activities...</span>
+                </>
+              ) : (
+                <>
+                  <span>Load More History</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

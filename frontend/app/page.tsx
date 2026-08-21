@@ -10,7 +10,7 @@ export default function LandingPage() {
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-card-muted border border-border-subtle text-xs text-charcoal-muted uppercase tracking-widest font-mono">
           <span>Editorial Learning Journal</span>
         </div>
-        <h1 className="font-serif italic text-5xl sm:text-7xl font-normal text-charcoal tracking-tight leading-[1.1]">
+        <h1 className="font-serif italic text-4xl xs:text-5xl sm:text-7xl font-normal text-charcoal tracking-tight leading-[1.1]">
           A quiet place to notice what you are becoming.
         </h1>
         <p className="text-base sm:text-lg text-charcoal-muted max-w-xl mx-auto leading-relaxed font-sans">

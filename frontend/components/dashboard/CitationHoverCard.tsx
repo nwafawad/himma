@@ -9,6 +9,7 @@ interface CitationProps {
   type: string;
   date: string;
   snippet: string;
+  url?: string;
 }
 
 export default function CitationHoverCard({
@@ -17,6 +18,7 @@ export default function CitationHoverCard({
   type,
   date,
   snippet,
+  url,
 }: CitationProps) {
   return (
     <HoverCard.Root openDelay={150} closeDelay={100}>
@@ -44,9 +46,20 @@ export default function CitationHoverCard({
             "{snippet}"
           </p>
           <div className="mt-3 pt-2 border-t border-border-subtle flex justify-end">
-            <span className="text-[11px] font-medium text-charcoal flex items-center gap-1 hover:underline cursor-pointer">
-              View Activity <ArrowRight className="w-3 h-3" />
-            </span>
+            {url ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] font-medium text-charcoal flex items-center gap-1 hover:underline cursor-pointer"
+              >
+                View Resource <ArrowRight className="w-3 h-3" />
+              </a>
+            ) : (
+              <span className="text-[11px] font-medium text-charcoal-muted flex items-center gap-1">
+                Activity Verified
+              </span>
+            )}
           </div>
           <HoverCard.Arrow className="fill-white" />
         </HoverCard.Content>

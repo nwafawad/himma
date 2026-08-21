@@ -15,19 +15,13 @@ export default function DashboardPage() {
     <div className="space-y-10 pb-12">
       {/* Header Title Section */}
       <ScrollReveal direction="down" delayMs={50}>
-        <div className="flex flex-col sm:flex-row sm:items-baseline justify-between border-b border-border-light pb-4 gap-2">
-          <div>
-            <h1 className="font-serif italic text-4xl sm:text-5xl text-charcoal tracking-tight">
-              Today's Momentum
-            </h1>
-            <p className="text-sm text-charcoal-muted mt-1">
-              Monday, August 3 • 4 Active Study Hours Logged
-            </p>
-          </div>
-          <div className="flex items-center space-x-2 text-xs font-mono text-charcoal-muted bg-card-muted px-3 py-1.5 rounded-full border border-border-subtle self-start sm:self-auto">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>SYNCHRONIZED WITH GITHUB</span>
-          </div>
+        <div className="border-b border-border-light pb-4">
+          <h1 className="font-serif italic text-4xl sm:text-5xl text-charcoal tracking-tight">
+            Today's Momentum
+          </h1>
+          <p className="text-sm text-charcoal-muted mt-1 font-sans">
+            {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+          </p>
         </div>
       </ScrollReveal>
 
@@ -62,7 +56,10 @@ export default function DashboardPage() {
         </ScrollReveal>
 
         <ScrollReveal direction="up" delayMs={450}>
-          <div className="p-6 bg-card border border-border-light rounded-2xl cursor-pointer hover:border-charcoal transition-all group shadow-sm hover:shadow-md h-full">
+          <div
+            onClick={() => window.dispatchEvent(new CustomEvent("open-import-modal"))}
+            className="p-6 bg-card border border-border-light rounded-2xl cursor-pointer hover:border-charcoal transition-all group shadow-sm hover:shadow-md h-full"
+          >
             <div className="w-10 h-10 rounded-full bg-card-muted flex items-center justify-center text-charcoal mb-4 group-hover:bg-charcoal group-hover:text-white transition-colors">
               <Upload className="w-5 h-5" />
             </div>
