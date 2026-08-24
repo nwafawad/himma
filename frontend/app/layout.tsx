@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Instrument_Serif, Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/navigation/Header";
 import QuickCaptureModal from "@/components/ui/QuickCaptureModal";
@@ -9,18 +8,6 @@ import FloatingLogButton from "@/components/ui/FloatingLogButton";
 
 import InstallPromptBanner from "@/components/pwa/InstallPromptBanner";
 import MobileBottomNav from "@/components/navigation/MobileBottomNav";
-
-const serifFont = Instrument_Serif({
-  weight: ["400"],
-  style: ["normal", "italic"],
-  subsets: ["latin"],
-  variable: "--font-serif",
-});
-
-const sansFont = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-});
 
 export const metadata: Metadata = {
   title: "Momentum — Quiet reflection for self-directed learners",
@@ -49,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${serifFont.variable} ${sansFont.variable}`}>
+    <html lang="en">
       <body className="bg-canvas text-charcoal min-h-screen flex flex-col font-sans selection:bg-[#A5B4FC]">
         <Header />
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-20 sm:pb-8">

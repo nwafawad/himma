@@ -12,7 +12,7 @@
     "build:frontend": "npm run build --prefix frontend",
     "build": "npm run build:backend && npm run build:frontend",
     "db:generate": "npm run db:generate --prefix backend",
-    "db:push": "npm run db:deploy --prefix backend",
+    "db:deploy": "npm run db:deploy --prefix backend",
     "db:studio": "npm run db:studio --prefix backend"
   },
   "devDependencies": {

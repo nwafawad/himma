@@ -14,9 +14,19 @@ dotenv.config();
 /**
  * Zod schema defining structure, default values, and type transformations for environment variables.
  */
+const numericEnv = (name: string, fallback: string, min: number, max: number) =>
+  z.string().default(fallback).transform((value, ctx) => {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${name} must be an integer between ${min} and ${max}` });
+      return z.NEVER;
+    }
+    return parsed;
+  });
+
 const envSchema = z.object({
   /** HTTP server listening port (defaults to 8000). */
-  PORT: z.string().default('8000').transform((val) => parseInt(val, 10)),
+  PORT: numericEnv('PORT', '8000', 1, 65535),
   
   /** Application execution environment mode. */
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -54,16 +64,41 @@ const envSchema = z.object({
   INSIGHT_BATCH_CRON: z.string().default('0 0 * * 0'),
   
   /** Minimum activity records required before generating an insight report. */
-  MIN_INSIGHT_ACTIVITIES: z.string().default('3').transform((val) => parseInt(val, 10)),
+  MIN_INSIGHT_ACTIVITIES: numericEnv('MIN_INSIGHT_ACTIVITIES', '3', 0, 1000),
   
   /** Minimum note records required before generating an insight report. */
-  MIN_INSIGHT_NOTES: z.string().default('1').transform((val) => parseInt(val, 10)),
+  MIN_INSIGHT_NOTES: numericEnv('MIN_INSIGHT_NOTES', '1', 0, 1000),
   
   /** Maximum number of insight generation runs allowed per user per month. */
-  MAX_MONTHLY_INSIGHT_RUNS_PER_USER: z.string().default('10').transform((val) => parseInt(val, 10)),
+  MAX_MONTHLY_INSIGHT_RUNS_PER_USER: numericEnv('MAX_MONTHLY_INSIGHT_RUNS_PER_USER', '10', 1, 10000),
   
   /** Maximum token allowance per AI insight generation run. */
-  MAX_TOKENS_PER_RUN: z.string().default('8000').transform((val) => parseInt(val, 10)),
+  MAX_TOKENS_PER_RUN: numericEnv('MAX_TOKENS_PER_RUN', '8000', 1, 1_000_000),
+}).superRefine((values, ctx) => {
+  if (values.NODE_ENV !== 'production') return;
+
+  const required: Array<[string, string | undefined]> = [
+    ['DATABASE_URL', values.DATABASE_URL],
+    ['DIRECT_URL', values.DIRECT_URL],
+    ['SUPABASE_URL', values.SUPABASE_URL],
+    ['SUPABASE_ANON_KEY', values.SUPABASE_ANON_KEY],
+    ['SUPABASE_SERVICE_ROLE_KEY', values.SUPABASE_SERVICE_ROLE_KEY],
+  ];
+  for (const [name, value] of required) {
+    if (!value || value.includes('placeholder') || value.includes('[YOUR-')) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [name], message: `${name} is required in production` });
+    }
+  }
+  if (values.CORS_ORIGIN.split(',').map((origin) => origin.trim()).includes('*')) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['CORS_ORIGIN'], message: 'Wildcard CORS is forbidden in production' });
+  }
+  try {
+    new URL(values.SUPABASE_URL);
+    new URL(values.DATABASE_URL);
+    if (values.DIRECT_URL) new URL(values.DIRECT_URL);
+  } catch {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Production service and database URLs must be valid URLs' });
+  }
 });
 
 /**
@@ -85,4 +120,3 @@ const parseEnv = () => {
  * Parsed, validated, and type-safe environment configuration instance.
  */
 export const env = parseEnv();
-

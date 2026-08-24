@@ -40,14 +40,8 @@ export const deleteAccount = async (req: Request, res: Response, next: NextFunct
   const userId = req.user!.id;
   try {
     await userService.deleteUserAccount(userId);
-    return res.status(200).json({
-      message: 'Account and all associated user records (profile, activities, notes, candidates, insights) have been permanently deleted in accordance with Section 11.3 data privacy requirements.',
-      deletedAt: new Date().toISOString(),
-      retentionPolicyDays: 30,
-      purgedImmediately: true,
-    });
+    return res.status(204).send();
   } catch (error) {
     next(error);
   }
 };
-

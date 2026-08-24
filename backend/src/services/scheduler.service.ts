@@ -7,6 +7,7 @@ import cron, { ScheduledTask } from 'node-cron';
 import { prisma } from '../config/prisma.js';
 import { env } from '../config/env.js';
 import { generateAndSaveInsightRun } from './insights.service.js';
+import { withTryAdvisoryLock } from '../db/advisoryLock.js';
 
 /**
  * Executes batch AI Insight Run generation for a single user with exponential backoff retries.
@@ -64,7 +65,7 @@ export const executeUserInsightWithRetry = async (
  *
  * @returns Summary object containing counts of successfully processed users and errors encountered.
  */
-export const runBatchInsightEngine = async (): Promise<{ processed: number; errors: number }> => {
+const executeBatchInsightEngine = async (): Promise<{ processed: number; errors: number }> => {
   console.log('🚀 Starting Scheduled Batch AI Insight Engine Job...');
   let processed = 0;
   let errors = 0;
@@ -109,6 +110,13 @@ export const runBatchInsightEngine = async (): Promise<{ processed: number; erro
   return { processed, errors };
 };
 
+export const runBatchInsightEngine = async (): Promise<{ processed: number; errors: number }> => {
+  const result = await withTryAdvisoryLock('scheduler:batch-insights', executeBatchInsightEngine);
+  if (result) return result;
+  console.log('Another replica owns the scheduled insight job; skipping this run.');
+  return { processed: 0, errors: 0 };
+};
+
 /**
  * Initializes and starts the background cron scheduler daemon using configured cron pattern.
  *
@@ -125,4 +133,3 @@ export const initScheduler = (): ScheduledTask => {
     });
   });
 };
-

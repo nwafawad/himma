@@ -43,22 +43,18 @@ export const exportUserDataBundle = async (userId: string) => {
  * @returns Always returns true upon completion.
  */
 export const deleteUserAccount = async (userId: string) => {
-  // 1. Delete user record in PostgreSQL (cascades to all profiles, notes, activities, insights)
-  try {
-    await prisma.user.delete({
-      where: { id: userId },
-    });
-  } catch (err: any) {
-    console.warn('User record not found in public.users, proceeding with Supabase Auth cleanup:', err.message);
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+  if (error) {
+    const failure = new Error('Account deletion could not be completed. No success was recorded.');
+    Object.assign(failure, { code: 'ACCOUNT_DELETION_FAILED', statusCode: 502, cause: error });
+    throw failure;
   }
 
-  // 2. Trigger Supabase Auth admin user deletion
-  try {
-    await supabaseAdmin.auth.admin.deleteUser(userId);
-  } catch (err: any) {
-    console.error('Warning: Failed to delete Supabase Auth admin user:', err.message);
+  // The auth.users foreign key is ON DELETE CASCADE. Verify that the public row is gone.
+  const remainingUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (remainingUser) {
+    const failure = new Error('Authentication was deleted, but associated application data still exists.');
+    Object.assign(failure, { code: 'ACCOUNT_DELETION_INCOMPLETE', statusCode: 500 });
+    throw failure;
   }
-
-  return true;
 };
-

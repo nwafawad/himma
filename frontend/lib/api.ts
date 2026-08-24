@@ -10,14 +10,9 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
   if (typeof window !== "undefined") {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        token = session.access_token;
-        localStorage.setItem("momentum_token", token);
-      } else {
-        token = localStorage.getItem("momentum_token");
-      }
+      token = session?.access_token ?? null;
     } catch {
-      token = localStorage.getItem("momentum_token");
+      token = null;
     }
   }
 
@@ -37,7 +32,6 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
 
     if (response.status === 401) {
       if (typeof window !== "undefined") {
-        localStorage.removeItem("momentum_token");
         await supabase.auth.signOut().catch(() => {});
         if (!window.location.pathname.startsWith("/login") && !window.location.pathname.startsWith("/auth")) {
           window.location.href = "/login";
@@ -52,6 +46,7 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
       throw new Error(errorBody.message || `API Request failed with status ${response.status}`);
     }
 
+    if (response.status === 204) return undefined as T;
     return response.json();
   } catch (error: any) {
     if (error.name === "TypeError" && error.message?.includes("fetch")) {
@@ -60,4 +55,3 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
     throw error;
   }
 }
-

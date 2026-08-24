@@ -5,6 +5,7 @@ node_modules/
 # Build Output & Caches
 .next/
 **/.next/
+frontend/public/sw.js
 out/
 **/out/
 dist/
@@ -55,5 +56,4 @@ graphify*
 scratch/
 .gemini/
 .antigravity/
-
 

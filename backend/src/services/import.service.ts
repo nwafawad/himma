@@ -6,6 +6,7 @@
 import { prisma } from '../config/prisma.js';
 import { ActivityType, ActivitySource } from '@prisma/client';
 import { canonicalizeUrl, normalizeTitle } from '../utils/url.js';
+import { fetchPublicHtml, UnsafeUrlError } from '../utils/safeFetch.js';
 
 /**
  * Infers an activity type enum based on domain/keyword patterns in a given URL.
@@ -356,21 +357,13 @@ const resolveUrlMetadata = async (urlStr: string): Promise<{ resolvedUrl: string
     const parsed = new URL(urlStr);
     title = parsed.hostname + (parsed.pathname !== '/' ? parsed.pathname : '');
 
-    const response = await fetch(urlStr, {
-      method: 'GET',
-      redirect: 'follow',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-      signal: AbortSignal.timeout(4000),
-    });
+    const { response, html: htmlText } = await fetchPublicHtml(urlStr);
 
     if (response.url) {
       resolvedUrl = response.url;
     }
 
     if (response.ok) {
-      const htmlText = await response.text();
       const ogTitleMatch = htmlText.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
                            htmlText.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["']/i);
       const titleTagMatch = htmlText.match(/<title[^>]*>([^<]+)<\/title>/i);
@@ -380,7 +373,8 @@ const resolveUrlMetadata = async (urlStr: string): Promise<{ resolvedUrl: string
         title = extractedTitle.trim();
       }
     }
-  } catch (_) {
+  } catch (error) {
+    if (error instanceof UnsafeUrlError) throw error;
     // Fallback to default hostname/pathname if external fetch times out or fails
   }
 
@@ -395,8 +389,10 @@ const resolveUrlMetadata = async (urlStr: string): Promise<{ resolvedUrl: string
  * @returns Array of staged pending candidate records.
  */
 export const parseAndStagePastedUrls = async (userId: string, urls: string[]) => {
-  const items = await Promise.all(
-    urls.map(async (urlStr) => {
+  const items: Array<{ title: string; url: string; type: ActivityType; consumedAt: Date }> = [];
+  const concurrency = 5;
+  for (let index = 0; index < urls.length; index += concurrency) {
+    const batch = await Promise.all(urls.slice(index, index + concurrency).map(async (urlStr) => {
       const { resolvedUrl, title } = await resolveUrlMetadata(urlStr);
       return {
         title,
@@ -404,8 +400,9 @@ export const parseAndStagePastedUrls = async (userId: string, urls: string[]) =>
         type: inferActivityType(resolvedUrl),
         consumedAt: new Date(),
       };
-    })
-  );
+    }));
+    items.push(...batch);
+  }
 
   return stageCandidates(userId, items);
 };
@@ -495,4 +492,3 @@ export const confirmImportCandidates = async (
     timeout: 30000, // Extend transaction timeout to 30s for large batches
   });
 };
-

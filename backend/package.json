@@ -7,9 +7,11 @@
     "build": "prisma generate && rimraf dist && tsc",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
+    "test": "node --import tsx --test src/*.test.ts",
+    "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma db push",
+    "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate"
   },

@@ -27,6 +27,7 @@ const router = Router();
  * Limits generation triggers to 10 requests per 15-minute window.
  */
 const generateInsightLimiter = createRateLimiter({
+  scope: 'insights.generate',
   windowMs: 15 * 60 * 1000,
   max: 10,
   message: 'Too many insight generation requests. Please wait before generating another report.',
@@ -70,4 +71,3 @@ router.get('/:id', validateParams(idParamSchema), getInsightRunById);
 router.post('/:id/feedback', validateParams(idParamSchema), validateBody(feedbackSchema), postFeedback);
 
 export default router;
-

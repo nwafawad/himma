@@ -33,13 +33,6 @@ export default function UserMenu() {
           const oauthAvatar = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture;
 
           setUserAvatar(dbAvatar || oauthAvatar || null);
-        } else {
-          // Check local token fallback if mock authentication is present
-          const localToken = typeof window !== "undefined" ? localStorage.getItem("momentum_token") : null;
-          if (localToken) {
-            setUserEmail("scholar@momentum.app");
-            setUserName("Scholar");
-          }
         }
       } catch (err) {
         console.warn("Session retrieval warning:", err);
@@ -53,9 +46,6 @@ export default function UserMenu() {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         if (session?.user) {
-          if (session.access_token) {
-            localStorage.setItem("momentum_token", session.access_token);
-          }
           setUserEmail(session.user.email || "");
           setUserName(
             session.user.user_metadata?.full_name ||
@@ -63,7 +53,7 @@ export default function UserMenu() {
             "Scholar"
           );
           setUserAvatar(session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null);
-        } else if (!localStorage.getItem("momentum_token")) {
+        } else {
           setUserEmail("");
           setUserName("");
           setUserAvatar(null);
@@ -82,9 +72,6 @@ export default function UserMenu() {
     } catch (err) {
       console.warn("Sign out warning:", err);
     } finally {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("momentum_token");
-      }
       setUserEmail("");
       setUserName("");
       setUserAvatar(null);
@@ -93,7 +80,7 @@ export default function UserMenu() {
   };
 
   // If no user is logged in, show the Sign In button
-  if (!loading && !userEmail && typeof window !== "undefined" && !localStorage.getItem("momentum_token")) {
+  if (!loading && !userEmail) {
     return (
       <Link
         href="/login"

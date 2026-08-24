@@ -52,6 +52,13 @@ export const errorHandler = (
   }
 
   // Custom Upload Filter Validation Errors
+  if (err?.code === 'UNSAFE_URL') {
+    return res.status(400).json({ error: 'Bad Request', code: 'UNSAFE_URL', message: err.message });
+  }
+  if (err?.code === 'ACCOUNT_DELETION_FAILED' || err?.code === 'ACCOUNT_DELETION_INCOMPLETE') {
+    return res.status(err.statusCode || 500).json({ error: 'Account Deletion Failed', code: err.code, message: err.message });
+  }
+
   if (err.message && typeof err.message === 'string' && err.message.startsWith('INVALID_')) {
     return res.status(400).json({
       error: 'Bad Request',
@@ -120,4 +127,3 @@ export const errorHandler = (
     ...(env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 };
-

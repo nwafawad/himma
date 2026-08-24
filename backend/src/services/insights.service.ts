@@ -7,6 +7,7 @@ import { prisma } from '../config/prisma.js';
 import { CreateInsightRunInput } from '../validators/insights.schema.js';
 import { FeedbackInput } from '../validators/feedback.schema.js';
 import { runAiInsightPipeline } from './ai/aiEngine.service.js';
+import { withAdvisoryLock } from '../db/advisoryLock.js';
 
 /**
  * Retrieves a paginated list of insight runs generated for a specific user.
@@ -72,6 +73,7 @@ export const getInsightRunByIdAndUser = async (id: string, userId: string) => {
  * @returns Object containing `skipped` flag, persisted insight run record (`data`), and telemetry metadata.
  */
 export const generateAndSaveInsightRun = async (userId: string, timeframeDays = 30) => {
+  return withAdvisoryLock(`insight-generation:${userId}`, async () => {
   const pipelineResult = await runAiInsightPipeline(userId, timeframeDays);
 
   if ('skipped' in pipelineResult && pipelineResult.skipped) {
@@ -115,6 +117,7 @@ export const generateAndSaveInsightRun = async (userId: string, timeframeDays = 
     data: savedRun,
     telemetry: result.telemetry,
   };
+  });
 };
 
 /**
@@ -173,4 +176,3 @@ export const processInsightFeedback = async (
     processedAt: new Date().toISOString(),
   };
 };
-

@@ -84,7 +84,8 @@ export default function ProfilePage() {
     setUploadingAvatar(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const userId = session?.user?.id || "demo-user";
+      if (!session?.user) throw new Error("You must be signed in to upload an avatar.");
+      const userId = session.user.id;
       const fileExt = file.name.split(".").pop();
       const filePath = `avatars/${userId}-${Date.now()}.${fileExt}`;
 

@@ -175,29 +175,14 @@ NEXT_PUBLIC_API_URL="http://localhost:8000"
 # Generate Prisma Client
 npm run db:generate
 
-# Push database schema to Supabase PostgreSQL
-npm run db:push
+# Deploy committed migrations to Supabase PostgreSQL
+npm run db:deploy
 
 # (Optional) Open Prisma Studio visual database editor
 npm run db:studio
 ```
 
-> **Optional Database Trigger**: To automatically create a profile record when a user registers through Supabase Auth, run the following SQL script in your Supabase SQL Editor:
-> ```sql
-> create or replace function public.handle_new_user()
-> returns trigger as $$
-> begin
->   insert into public.users (id, email)
->   values (new.id, new.email)
->   on conflict (id) do update set email = excluded.email;
->   return new;
-> end;
-> $$ language plpgsql security definer;
-> 
-> create trigger on_auth_user_created
->   after insert on auth.users
->   for each row execute procedure public.handle_new_user();
-> ```
+> The committed migration includes the hardened `auth.users` provisioning trigger, RLS policies, and private operational tables. Do not create these objects manually in the SQL editor.
 
 ---
 
@@ -260,7 +245,7 @@ All protected endpoints require an `Authorization: Bearer <token>` header obtain
 | `npm run dev:frontend` | Runs only the Next.js development server |
 | `npm run build` | Builds both backend (TypeScript compilation) and frontend (Next.js production build) |
 | `npm run db:generate` | Generates the Prisma Client types |
-| `npm run db:push` | Deploys schema changes directly to Supabase PostgreSQL |
+| `npm run db:deploy` | Applies committed Prisma migrations to Supabase PostgreSQL |
 | `npm run db:studio` | Launches Prisma Studio GUI for database inspection |
 
 ---

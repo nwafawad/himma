@@ -30,6 +30,12 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
+DO $$ BEGIN
+    CREATE TYPE "import_candidate_status" AS ENUM ('pending', 'approved', 'rejected');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
 -- ------------------------------------------------------------------------------
 -- 2. Tables & Schema Definitions
 -- ------------------------------------------------------------------------------
@@ -44,7 +50,8 @@ CREATE TABLE IF NOT EXISTS "public"."users" (
 -- Table 2: skills_goals_profile
 CREATE TABLE IF NOT EXISTS "public"."skills_goals_profile" (
     "id" UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
-    "user_id" UUID NOT NULL UNIQUE REFERENCES auth.users("id") ON DELETE CASCADE,
+    "user_id" UUID NOT NULL UNIQUE REFERENCES public.users("id") ON DELETE CASCADE,
+    "avatar_url" TEXT NULL,
     "current_skills" TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
     "interests" TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
     "target_path" TEXT NULL,
@@ -55,7 +62,7 @@ CREATE TABLE IF NOT EXISTS "public"."skills_goals_profile" (
 -- Table 3: activity_entries
 CREATE TABLE IF NOT EXISTS "public"."activity_entries" (
     "id" UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
-    "user_id" UUID NOT NULL REFERENCES auth.users("id") ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES public.users("id") ON DELETE CASCADE,
     "source" "activity_source" NOT NULL,
     "title" TEXT NOT NULL,
     "url" TEXT NULL,
@@ -68,7 +75,7 @@ CREATE TABLE IF NOT EXISTS "public"."activity_entries" (
 -- Table 4: note_entries
 CREATE TABLE IF NOT EXISTS "public"."note_entries" (
     "id" UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
-    "user_id" UUID NOT NULL REFERENCES auth.users("id") ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES public.users("id") ON DELETE CASCADE,
     "text" TEXT NOT NULL,
     "tags" TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
     "linked_activity_id" UUID NULL REFERENCES "public"."activity_entries"("id") ON DELETE SET NULL,
@@ -78,14 +85,54 @@ CREATE TABLE IF NOT EXISTS "public"."note_entries" (
 -- Table 5: insight_runs
 CREATE TABLE IF NOT EXISTS "public"."insight_runs" (
     "id" UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
-    "user_id" UUID NOT NULL REFERENCES auth.users("id") ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES public.users("id") ON DELETE CASCADE,
     "timestamp" TIMESTAMPTZ NOT NULL DEFAULT now(),
     "input_window" JSONB NOT NULL DEFAULT '{}'::jsonb,
     "skill_summary" JSONB NOT NULL DEFAULT '{}'::jsonb,
     "direction_summary" JSONB NOT NULL DEFAULT '{}'::jsonb,
     "alignment_score" "alignment_score" NOT NULL,
-    "citations" JSONB NOT NULL DEFAULT '[]'::jsonb
+    "citations" JSONB NOT NULL DEFAULT '[]'::jsonb,
+    "status" TEXT NOT NULL DEFAULT 'completed',
+    "status_reason" TEXT NULL,
+    "tokens_used" INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS "public"."import_candidates" (
+    "id" UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+    "user_id" UUID NOT NULL REFERENCES public.users("id") ON DELETE CASCADE,
+    "title" TEXT NOT NULL,
+    "url" TEXT NULL,
+    "type" "activity_type" NOT NULL,
+    "source" "activity_source" NOT NULL DEFAULT 'import',
+    "tags" TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
+    "consumed_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+    "status" "import_candidate_status" NOT NULL DEFAULT 'pending',
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS "public"."profile_digests" (
+    "id" UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+    "user_id" UUID NOT NULL REFERENCES public.users("id") ON DELETE CASCADE,
+    "period_start" TIMESTAMPTZ NOT NULL,
+    "period_end" TIMESTAMPTZ NOT NULL,
+    "digest_summary" JSONB NOT NULL DEFAULT '{}'::jsonb,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT "profile_digests_period_check" CHECK (period_end >= period_start)
+);
+
+CREATE SCHEMA IF NOT EXISTS private;
+REVOKE ALL ON SCHEMA private FROM PUBLIC, anon, authenticated;
+
+CREATE TABLE IF NOT EXISTS private.api_rate_limits (
+    "scope" TEXT NOT NULL,
+    "key" TEXT NOT NULL,
+    "window_start" TIMESTAMPTZ NOT NULL,
+    "count" INTEGER NOT NULL DEFAULT 1 CHECK (count > 0),
+    "expires_at" TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (scope, key, window_start)
+);
+
+CREATE INDEX IF NOT EXISTS "idx_api_rate_limits_expires_at" ON private.api_rate_limits (expires_at);
 
 -- ------------------------------------------------------------------------------
 -- 3. Database Triggers & Functions
@@ -98,7 +145,7 @@ BEGIN
     NEW.updated_at = now();
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = '';
 
 -- Trigger for skills_goals_profile
 DROP TRIGGER IF EXISTS set_skills_goals_profile_updated_at ON "public"."skills_goals_profile";
@@ -116,7 +163,10 @@ BEGIN
     ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
+
+REVOKE ALL ON FUNCTION public.update_updated_at_column() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -135,6 +185,9 @@ CREATE INDEX IF NOT EXISTS "idx_activity_entries_user_id" ON "public"."activity_
 CREATE INDEX IF NOT EXISTS "idx_note_entries_user_id" ON "public"."note_entries" ("user_id");
 CREATE INDEX IF NOT EXISTS "idx_note_entries_linked_activity_id" ON "public"."note_entries" ("linked_activity_id");
 CREATE INDEX IF NOT EXISTS "idx_insight_runs_user_id" ON "public"."insight_runs" ("user_id");
+CREATE INDEX IF NOT EXISTS "idx_import_candidates_user_status" ON "public"."import_candidates" ("user_id", "status");
+CREATE INDEX IF NOT EXISTS "idx_import_candidates_user_url" ON "public"."import_candidates" ("user_id", "url");
+CREATE INDEX IF NOT EXISTS "idx_profile_digests_user_created" ON "public"."profile_digests" ("user_id", "created_at" DESC);
 
 -- Date Range Query Indexes
 CREATE INDEX IF NOT EXISTS "idx_activity_entries_consumed_at" ON "public"."activity_entries" ("user_id", "consumed_at" DESC);
@@ -154,6 +207,8 @@ ALTER TABLE "public"."skills_goals_profile" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."activity_entries" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."note_entries" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."insight_runs" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."import_candidates" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."profile_digests" ENABLE ROW LEVEL SECURITY;
 
 -- -----------------------------------
 -- RLS Policies: public.users
@@ -268,3 +323,21 @@ DROP POLICY IF EXISTS "Users can delete own insights" ON "public"."insight_runs"
 CREATE POLICY "Users can delete own insights"
     ON "public"."insight_runs" FOR DELETE
     USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can read own import candidates" ON public.import_candidates FOR SELECT TO authenticated
+    USING ((SELECT auth.uid()) = user_id);
+CREATE POLICY "Users can insert own import candidates" ON public.import_candidates FOR INSERT TO authenticated
+    WITH CHECK ((SELECT auth.uid()) = user_id);
+CREATE POLICY "Users can update own import candidates" ON public.import_candidates FOR UPDATE TO authenticated
+    USING ((SELECT auth.uid()) = user_id) WITH CHECK ((SELECT auth.uid()) = user_id);
+CREATE POLICY "Users can delete own import candidates" ON public.import_candidates FOR DELETE TO authenticated
+    USING ((SELECT auth.uid()) = user_id);
+
+CREATE POLICY "Users can read own profile digests" ON public.profile_digests FOR SELECT TO authenticated
+    USING ((SELECT auth.uid()) = user_id);
+CREATE POLICY "Users can insert own profile digests" ON public.profile_digests FOR INSERT TO authenticated
+    WITH CHECK ((SELECT auth.uid()) = user_id);
+CREATE POLICY "Users can update own profile digests" ON public.profile_digests FOR UPDATE TO authenticated
+    USING ((SELECT auth.uid()) = user_id) WITH CHECK ((SELECT auth.uid()) = user_id);
+CREATE POLICY "Users can delete own profile digests" ON public.profile_digests FOR DELETE TO authenticated
+    USING ((SELECT auth.uid()) = user_id);

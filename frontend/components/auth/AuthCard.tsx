@@ -23,16 +23,6 @@ export default function AuthCard() {
     setLoading(true);
     setErrorMsg(null);
 
-    // Development / Testing Mock Bypass Token
-    if (email === "dev.user@momentum.app" || email === "test@momentum.app") {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("momentum_token", "mock-supabase-token");
-      }
-      setLoading(false);
-      router.push("/dashboard");
-      return;
-    }
-
     try {
       if (isSignUp) {
         // Sign Up with Supabase
@@ -46,9 +36,7 @@ export default function AuthCard() {
 
         if (error) throw error;
 
-        if (data.session) {
-          localStorage.setItem("momentum_token", data.session.access_token);
-        }
+        if (!data.session) throw new Error("Check your email to confirm your account before signing in.");
       } else {
         // Sign In with Supabase
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -58,17 +46,12 @@ export default function AuthCard() {
 
         if (error) throw error;
 
-        if (data.session) {
-          localStorage.setItem("momentum_token", data.session.access_token);
-        }
+        if (!data.session) throw new Error("Sign-in completed without an active session.");
       }
 
       router.push("/dashboard");
     } catch (err: any) {
-      console.warn("Auth operation error, engaging fallback mode for testing:", err.message);
-      // Seamless testing fallback if Supabase URL is not configured
-      localStorage.setItem("momentum_token", "mock-supabase-token");
-      router.push("/dashboard");
+      setErrorMsg(err instanceof Error ? err.message : "Authentication failed.");
     } finally {
       setLoading(false);
     }
@@ -79,21 +62,6 @@ export default function AuthCard() {
     setLoading(true);
     setErrorMsg(null);
     try {
-      // Check if Supabase client is using real credentials
-      const isPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("placeholder") || !process.env.NEXT_PUBLIC_SUPABASE_URL;
-      
-      if (isPlaceholder) {
-        // Local testing mock login fallback
-        if (typeof window !== "undefined") {
-          localStorage.setItem("momentum_token", "mock-supabase-token");
-        }
-        setTimeout(() => {
-          setLoading(false);
-          router.push("/dashboard");
-        }, 500);
-        return;
-      }
-
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
@@ -102,11 +70,7 @@ export default function AuthCard() {
       });
       if (error) throw error;
     } catch (err: any) {
-      console.warn(`OAuth login error for ${provider}, engaging dev fallback:`, err.message);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("momentum_token", "mock-supabase-token");
-      }
-      router.push("/dashboard");
+      setErrorMsg(err instanceof Error ? err.message : `${provider} authentication failed.`);
     } finally {
       setLoading(false);
     }
@@ -124,21 +88,6 @@ export default function AuthCard() {
             ? "Create an account to start quietly logging your study trajectory."
             : "Sign in to access your dashboard and AI career insights."}
         </p>
-      </div>
-
-      {/* Development / Testing Quick Fill Helper Banner */}
-      <div className="p-2.5 rounded-xl bg-card-muted border border-border-subtle text-[11px] text-charcoal-muted flex items-center justify-between">
-        <span>Testing Preset:</span>
-        <button
-          type="button"
-          onClick={() => {
-            setEmail("dev.user@momentum.app");
-            setPassword("password123");
-          }}
-          className="font-mono text-indigo-600 hover:underline font-semibold"
-        >
-          Use dev.user@momentum.app
-        </button>
       </div>
 
       {/* Mode Switcher Tabs */}

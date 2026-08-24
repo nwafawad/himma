@@ -68,15 +68,6 @@ export class SupabaseAuthProvider implements AuthProvider {
    */
   async verifyToken(token: string): Promise<AuthUser | null> {
     // Development mock token fallback allowed ONLY in non-production environments
-    if (env.NODE_ENV !== 'production' && (token === 'mock-supabase-token' || token === 'valid-scaffold-token')) {
-      return {
-        id: '00000000-0000-0000-0000-000000000001',
-        email: 'dev.user@momentum.app',
-        role: 'authenticated',
-        metadata: { dev: true },
-      };
-    }
-
     try {
       const { data: { user }, error } = await supabase.auth.getUser(token);
 
@@ -167,4 +158,3 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
  * Alias of `authenticateUser` for Express middleware naming consistency.
  */
 export const requireAuth = authenticateUser;
-

@@ -1,4 +1,5 @@
 import { prisma } from '../config/prisma.js';
+import { closePostgresPool } from '../config/postgres.js';
 
 export { prisma };
 
@@ -27,5 +28,5 @@ export const checkDbHealth = async (): Promise<{ isConnected: boolean; latencyMs
  * Close database client connections gracefully.
  */
 export const closeDbConnections = async (): Promise<void> => {
-  await prisma.$disconnect();
+  await Promise.all([prisma.$disconnect(), closePostgresPool()]);
 };

@@ -17,8 +17,6 @@ export default function AuthCallbackPage() {
         if (error) throw error;
 
         if (data.session) {
-          localStorage.setItem("momentum_token", data.session.access_token);
-
           // Check if DB profile avatar exists before syncing Google picture
           try {
             const profileRes = await fetchApi<{ data?: { avatarUrl?: string } }>("/profile");
@@ -41,7 +39,6 @@ export default function AuthCallbackPage() {
           const { data: authListener } = supabase.auth.onAuthStateChange(
             (event, session) => {
               if (session) {
-                localStorage.setItem("momentum_token", session.access_token);
                 router.replace("/dashboard");
               }
             }

@@ -27,7 +27,7 @@ import { importUrlsSchema, confirmImportSchema } from '../validators/import.sche
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 20 * 1024 * 1024, // 20MB size limit to support large 9MB+ browser history exports
+    fileSize: 5 * 1024 * 1024,
   },
   fileFilter: (_req, file, cb) => {
     // Validate file type
@@ -50,6 +50,7 @@ const router = Router();
  * Restricts requests to 15 per 15-minute window per IP/user.
  */
 const importLimiter = createRateLimiter({
+  scope: 'imports.ingest',
   windowMs: 15 * 60 * 1000,
   max: 15,
   message: 'Too many import requests. Please wait before staging more history items.',
@@ -86,4 +87,3 @@ router.get('/candidates', importController.getPendingCandidates);
 router.post('/confirm', validateBody(confirmImportSchema), importController.confirmCandidates);
 
 export default router;
-
