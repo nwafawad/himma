@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ExternalLink, Loader2, RotateCw, ChevronDown } from "lucide-react";
 import { fetchApi } from "@/lib/api";
@@ -32,15 +32,19 @@ export default function TimelinePage() {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [hasMore, setHasMore] = useState<boolean>(timelineHasMoreCache);
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const activityOffsetRef = useRef(0);
+  const noteOffsetRef = useRef(0);
 
   const loadTimeline = useCallback(async (isManual = false) => {
     if (isManual && refreshing) return;
     if (isManual) setRefreshing(true);
+    setErrorMessage("");
     try {
       // Fetch both activities and notes from the backend database with pagination metadata
       const [activitiesRes, notesRes] = await Promise.all([
-        fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>("/activities?limit=20&offset=0").catch(() => []),
-        fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>("/notes?limit=20&offset=0").catch(() => []),
+        fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>("/activities?limit=20&offset=0"),
+        fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>("/notes?limit=20&offset=0"),
       ]);
 
       const rawActivities = Array.isArray(activitiesRes) ? activitiesRes : activitiesRes?.data || [];
@@ -63,7 +67,7 @@ export default function TimelinePage() {
         else mappedType = "Note";
 
         return {
-          id: item.id,
+          id: `activity:${item.id}`,
           dateGroup,
           type: mappedType,
           title: item.title,
@@ -81,7 +85,7 @@ export default function TimelinePage() {
         const time = dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
         return {
-          id: item.id,
+          id: `note:${item.id}`,
           dateGroup,
           type: "Note",
           title: item.text ? (item.text.length > 60 ? `${item.text.slice(0, 60)}...` : item.text) : "Study Note",
@@ -92,13 +96,18 @@ export default function TimelinePage() {
         };
       });
 
-      const merged = [...formattedActivities, ...formattedNotes];
+      const merged = [...formattedActivities, ...formattedNotes].sort(
+        (a, b) => new Date(b.consumedAt || 0).getTime() - new Date(a.consumedAt || 0).getTime(),
+      );
+      activityOffsetRef.current = rawActivities.length;
+      noteOffsetRef.current = rawNotes.length;
       timelineCache = merged;
       timelineHasMoreCache = hasMoreFlag;
       setTimelineEntries(merged);
       setHasMore(hasMoreFlag);
     } catch (err) {
       console.warn("Could not fetch timeline items from backend API:", err);
+      setErrorMessage(err instanceof Error ? err.message : "Unable to load the timeline.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -109,10 +118,9 @@ export default function TimelinePage() {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const offset = timelineEntries.length;
       const [activitiesRes, notesRes] = await Promise.all([
-        fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>(`/activities?limit=20&offset=${offset}`).catch(() => []),
-        fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>(`/notes?limit=20&offset=${offset}`).catch(() => []),
+        fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>(`/activities?limit=20&offset=${activityOffsetRef.current}`),
+        fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>(`/notes?limit=20&offset=${noteOffsetRef.current}`),
       ]);
 
       const rawActivities = Array.isArray(activitiesRes) ? activitiesRes : activitiesRes?.data || [];
@@ -135,7 +143,7 @@ export default function TimelinePage() {
         else mappedType = "Note";
 
         return {
-          id: item.id,
+          id: `activity:${item.id}`,
           dateGroup,
           type: mappedType,
           title: item.title,
@@ -153,7 +161,7 @@ export default function TimelinePage() {
         const time = dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
         return {
-          id: item.id,
+          id: `note:${item.id}`,
           dateGroup,
           type: "Note",
           title: item.text ? (item.text.length > 60 ? `${item.text.slice(0, 60)}...` : item.text) : "Study Note",
@@ -165,11 +173,15 @@ export default function TimelinePage() {
       });
 
       const newMerged = [...formattedActivities, ...formattedNotes];
+      activityOffsetRef.current += rawActivities.length;
+      noteOffsetRef.current += rawNotes.length;
 
       setTimelineEntries((prev) => {
         const existingIds = new Set(prev.map((e) => e.id));
         const filteredNew = newMerged.filter((e) => !existingIds.has(e.id));
-        const updated = [...prev, ...filteredNew];
+        const updated = [...prev, ...filteredNew].sort(
+          (a, b) => new Date(b.consumedAt || 0).getTime() - new Date(a.consumedAt || 0).getTime(),
+        );
         timelineCache = updated;
         return updated;
       });
@@ -178,6 +190,7 @@ export default function TimelinePage() {
       setHasMore(hasMoreFlag);
     } catch (err) {
       console.warn("Could not fetch more timeline items:", err);
+      setErrorMessage(err instanceof Error ? err.message : "Unable to load more timeline entries.");
     } finally {
       setLoadingMore(false);
     }
@@ -234,9 +247,11 @@ export default function TimelinePage() {
 
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={() => loadTimeline(true)}
             disabled={refreshing || loading}
             title="Refresh timeline"
+            aria-label="Refresh timeline"
             className="p-2 rounded-xl border border-border-light bg-card hover:border-charcoal/20 text-charcoal-muted hover:text-charcoal transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center shadow-2xs"
           >
             <RotateCw className={`w-4 h-4 ${refreshing ? "animate-spin text-charcoal" : ""}`} />
@@ -256,8 +271,10 @@ export default function TimelinePage() {
           const isActive = activeFilter === filter;
           return (
             <button
+              type="button"
               key={filter}
               onClick={() => setActiveFilter(filter)}
+              aria-pressed={isActive}
               className={`px-4 py-2 rounded-full text-xs font-medium transition-all shrink-0 ${
                 isActive
                   ? "bg-charcoal text-white shadow-sm"
@@ -272,6 +289,12 @@ export default function TimelinePage() {
 
       {/* Timeline Stream */}
       <div className="space-y-8">
+        {errorMessage && (
+          <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <span>{errorMessage}</span>
+            <button type="button" onClick={() => loadTimeline(true)} className="shrink-0 rounded-full border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100">Retry</button>
+          </div>
+        )}
         <AnimatePresence mode="popLayout">
           {loading ? (
             <div className="flex items-center justify-center py-16 text-charcoal-muted text-sm gap-2">

@@ -43,6 +43,8 @@ export default function MobileBottomNav() {
 
         {/* Quick Capture Floating Action Trigger in Mobile Bottom Nav */}
         <button
+          type="button"
+          aria-label="Log a learning activity"
           onClick={handleOpenCapture}
           className="flex flex-col items-center justify-center flex-1 h-full py-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-700 active:scale-95 transition-all"
         >

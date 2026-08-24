@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { X, Link as LinkIcon, Book, Check, Loader2 } from "lucide-react";
+import { X, Check, Loader2, AlertCircle } from "lucide-react";
 import { fetchApi } from "@/lib/api";
 
 export default function QuickCaptureModal() {
@@ -12,6 +12,8 @@ export default function QuickCaptureModal() {
   const [content, setContent] = useState("");
   const [category, setCategory] = useState("ENGINEERING");
   const [saved, setSaved] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [warningMessage, setWarningMessage] = useState("");
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -39,6 +41,9 @@ export default function QuickCaptureModal() {
     if (submitting || saved || !title.trim()) return;
 
     setSubmitting(true);
+    setErrorMessage("");
+    setWarningMessage("");
+    let partialFailure = false;
 
     try {
       const actType = type === "url" ? "article" : "other";
@@ -56,22 +61,28 @@ export default function QuickCaptureModal() {
       });
 
       if (content.trim()) {
-        await fetchApi("/notes", {
-          method: "POST",
-          body: JSON.stringify({
-            text: content.trim(),
-            tags: [category.toLowerCase()],
-            linkedActivityId: activityRes?.data?.id || null,
-          }),
-        }).catch((err) => console.warn("Linked note creation warning:", err));
+        try {
+          await fetchApi("/notes", {
+            method: "POST",
+            body: JSON.stringify({
+              text: content.trim(),
+              tags: [category.toLowerCase()],
+              linkedActivityId: activityRes?.data?.id || null,
+            }),
+          });
+        } catch {
+          partialFailure = true;
+          setWarningMessage("The activity was saved, but its takeaways could not be attached.");
+        }
       }
 
       // Notify ActivityFeed & Timeline to refresh live entries with optimistic item detail
       window.dispatchEvent(new CustomEvent("activity-logged", { detail: activityRes?.data }));
       setSaved(true);
     } catch (err) {
-      console.warn("Backend unavailable; performing local capture simulation:", err);
-      setSaved(true);
+      const message = err instanceof Error ? err.message : "Unable to save this entry.";
+      setErrorMessage(message);
+      return;
     } finally {
       setSubmitting(false);
     }
@@ -81,7 +92,7 @@ export default function QuickCaptureModal() {
       setOpen(false);
       setTitle("");
       setContent("");
-    }, 800);
+    }, partialFailure ? 2400 : 800);
   };
 
   return (
@@ -98,12 +109,26 @@ export default function QuickCaptureModal() {
                 ⌘K
               </span>
             </div>
-            <Dialog.Close className="text-charcoal-muted hover:text-charcoal p-1.5 rounded-lg transition-colors">
+            <Dialog.Close aria-label="Close quick capture" className="text-charcoal-muted hover:text-charcoal p-1.5 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal">
               <X className="w-5 h-5 sm:w-4 sm:h-4" />
             </Dialog.Close>
           </div>
 
           <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+            {errorMessage && (
+              <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p className="font-medium">Entry was not saved</p>
+                  <p className="mt-0.5 text-xs leading-relaxed">{errorMessage} Your input is still here—check your connection and try again.</p>
+                </div>
+              </div>
+            )}
+            {warningMessage && (
+              <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                {warningMessage}
+              </div>
+            )}
             {/* Type selector */}
             <div className="flex gap-2 p-1 bg-card-muted rounded-lg text-xs">
               <button

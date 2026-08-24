@@ -38,9 +38,10 @@ export default function DashboardPage() {
       {/* Quick Action Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <ScrollReveal direction="up" delayMs={350}>
-          <div
+          <button
+            type="button"
             onClick={handleOpenCapture}
-            className="p-6 bg-card border border-border-light rounded-2xl cursor-pointer hover:border-charcoal transition-all group shadow-sm hover:shadow-md h-full"
+            className="w-full p-6 bg-card border border-border-light rounded-2xl cursor-pointer hover:border-charcoal transition-all group shadow-sm hover:shadow-md h-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-offset-2"
           >
             <div className="w-10 h-10 rounded-full bg-card-muted flex items-center justify-center text-charcoal mb-4 group-hover:bg-charcoal group-hover:text-white transition-colors">
               <Pen className="w-5 h-5" />
@@ -52,13 +53,14 @@ export default function DashboardPage() {
             <p className="text-xs text-charcoal-muted leading-relaxed">
               Record a new study session, key reflection note, or code repository link.
             </p>
-          </div>
+          </button>
         </ScrollReveal>
 
         <ScrollReveal direction="up" delayMs={450}>
-          <div
+          <button
+            type="button"
             onClick={() => window.dispatchEvent(new CustomEvent("open-import-modal"))}
-            className="p-6 bg-card border border-border-light rounded-2xl cursor-pointer hover:border-charcoal transition-all group shadow-sm hover:shadow-md h-full"
+            className="w-full p-6 bg-card border border-border-light rounded-2xl cursor-pointer hover:border-charcoal transition-all group shadow-sm hover:shadow-md h-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-offset-2"
           >
             <div className="w-10 h-10 rounded-full bg-card-muted flex items-center justify-center text-charcoal mb-4 group-hover:bg-charcoal group-hover:text-white transition-colors">
               <Upload className="w-5 h-5" />
@@ -70,7 +72,7 @@ export default function DashboardPage() {
             <p className="text-xs text-charcoal-muted leading-relaxed">
               Batch upload browser reading history, Coursera progress, or Notion pages.
             </p>
-          </div>
+          </button>
         </ScrollReveal>
       </div>
     </div>

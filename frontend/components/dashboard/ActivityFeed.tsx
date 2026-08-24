@@ -45,10 +45,12 @@ export default function ActivityFeed() {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [hasMore, setHasMore] = useState<boolean>(activityFeedHasMoreCache);
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
   const loadActivities = useCallback(async (isManual = false) => {
     if (isManual && refreshing) return;
     if (isManual) setRefreshing(true);
+    setErrorMessage("");
     try {
       const response = await fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>("/activities?limit=15&offset=0");
       const list = Array.isArray(response) ? response : response?.data || [];
@@ -71,6 +73,7 @@ export default function ActivityFeed() {
       setHasMore(hasMoreFlag);
     } catch (err) {
       console.warn("Could not fetch activities from backend API:", err);
+      setErrorMessage(err instanceof Error ? err.message : "Unable to load activities.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -109,6 +112,7 @@ export default function ActivityFeed() {
       setHasMore(hasMoreFlag);
     } catch (err) {
       console.warn("Could not fetch more activities:", err);
+      setErrorMessage(err instanceof Error ? err.message : "Unable to load more activities.");
     } finally {
       setLoadingMore(false);
     }
@@ -146,6 +150,7 @@ export default function ActivityFeed() {
             onClick={() => loadActivities(true)}
             disabled={refreshing || loading}
             title="Refresh activities"
+            aria-label="Refresh activities"
             className="p-1.5 rounded-lg border border-border-light bg-card hover:border-charcoal/20 text-charcoal-muted hover:text-charcoal transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center"
           >
             <RotateCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-charcoal" : ""}`} />
@@ -160,6 +165,12 @@ export default function ActivityFeed() {
       </div>
 
       <div className="space-y-3">
+        {errorMessage && (
+          <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <span>{errorMessage}</span>
+            <button type="button" onClick={() => loadActivities(true)} className="shrink-0 rounded-full border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100">Retry</button>
+          </div>
+        )}
         <AnimatePresence mode="popLayout">
           {loading ? (
             <div className="flex items-center justify-center py-10 text-charcoal-muted text-sm gap-2">
