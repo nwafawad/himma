@@ -27,6 +27,7 @@ export default function MobileBottomNav() {
             <Link
               key={item.href}
               href={item.href}
+              aria-current={isActive ? "page" : undefined}
               className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[11px] font-medium transition-colors ${
                 isActive
                   ? "text-charcoal font-semibold"
@@ -46,7 +47,7 @@ export default function MobileBottomNav() {
           type="button"
           aria-label="Log a learning activity"
           onClick={handleOpenCapture}
-          className="flex flex-col items-center justify-center flex-1 h-full py-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-700 active:scale-95 transition-all"
+          className="flex flex-col items-center justify-center flex-1 h-full py-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-700 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-inset"
         >
           <div className="w-9 h-9 rounded-full bg-charcoal text-white flex items-center justify-center shadow-md">
             <Plus className="w-5 h-5" />

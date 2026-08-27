@@ -14,7 +14,6 @@
     "@radix-ui/react-hover-card": "^1.1.1",
     "@radix-ui/react-popover": "^1.1.1",
     "@serwist/next": "^9.5.12",
-    "@supabase/supabase-js": "^2.112.0",
     "clsx": "^2.1.1",
     "framer-motion": "^11.3.28",
     "lucide-react": "^0.428.0",

@@ -77,7 +77,7 @@ export const generateLocalHeuristicInsight = (
     skillSummary: {
       strong: strong.length > 0 ? strong : ['TypeScript', 'Node.js'],
       emerging: emerging.length > 0 ? emerging : ['PostgreSQL', 'Prisma'],
-      developing: developing.length > 0 ? developing : ['Supabase Auth'],
+      developing: developing.length > 0 ? developing : ['Authentication & Security'],
     },
     directionSummary: {
       narrative: `User has recorded ${activities.length} activity entries and ${notes.length} notes in the past ${timeframeDays} days. Focus is aligned with target path: ${profile?.targetPath || 'Not set'}.`,

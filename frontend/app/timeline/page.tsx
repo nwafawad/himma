@@ -35,10 +35,14 @@ export default function TimelinePage() {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const activityOffsetRef = useRef(0);
   const noteOffsetRef = useRef(0);
+  const refreshInFlight = useRef(false);
 
   const loadTimeline = useCallback(async (isManual = false) => {
-    if (isManual && refreshing) return;
-    if (isManual) setRefreshing(true);
+    if (isManual && refreshInFlight.current) return;
+    if (isManual) {
+      refreshInFlight.current = true;
+      setRefreshing(true);
+    }
     setErrorMessage("");
     try {
       // Fetch both activities and notes from the backend database with pagination metadata
@@ -111,8 +115,9 @@ export default function TimelinePage() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      refreshInFlight.current = false;
     }
-  }, [refreshing]);
+  }, []);
 
   const loadMoreTimeline = async () => {
     if (loadingMore || !hasMore) return;
@@ -252,7 +257,7 @@ export default function TimelinePage() {
             disabled={refreshing || loading}
             title="Refresh timeline"
             aria-label="Refresh timeline"
-            className="p-2 rounded-xl border border-border-light bg-card hover:border-charcoal/20 text-charcoal-muted hover:text-charcoal transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center shadow-2xs"
+            className="min-h-11 min-w-11 p-2 rounded-xl border border-border-light bg-card hover:border-charcoal/20 text-charcoal-muted hover:text-charcoal transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal"
           >
             <RotateCw className={`w-4 h-4 ${refreshing ? "animate-spin text-charcoal" : ""}`} />
           </button>
@@ -266,7 +271,7 @@ export default function TimelinePage() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none">
+      <div className="flex flex-wrap items-center gap-2 pb-2" role="group" aria-label="Timeline filters">
         {FILTERS.map((filter) => {
           const isActive = activeFilter === filter;
           return (
@@ -275,7 +280,7 @@ export default function TimelinePage() {
               key={filter}
               onClick={() => setActiveFilter(filter)}
               aria-pressed={isActive}
-              className={`px-4 py-2 rounded-full text-xs font-medium transition-all shrink-0 ${
+              className={`min-h-10 px-4 py-2 rounded-full text-xs font-medium transition-all shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal ${
                 isActive
                   ? "bg-charcoal text-white shadow-sm"
                   : "bg-card hover:bg-card-muted border border-border-light text-charcoal-muted hover:text-charcoal"
@@ -292,7 +297,7 @@ export default function TimelinePage() {
         {errorMessage && (
           <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             <span>{errorMessage}</span>
-            <button type="button" onClick={() => loadTimeline(true)} className="shrink-0 rounded-full border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100">Retry</button>
+            <button type="button" onClick={() => loadTimeline(true)} className="shrink-0 min-h-10 rounded-full border border-red-300 px-4 py-2 text-xs font-medium hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">Retry</button>
           </div>
         )}
         <AnimatePresence mode="popLayout">
@@ -301,7 +306,7 @@ export default function TimelinePage() {
               <Loader2 className="w-5 h-5 animate-spin text-charcoal" />
               <span>Building your learning timeline...</span>
             </div>
-          ) : Object.keys(groupedEntries).length === 0 ? (
+          ) : errorMessage ? null : Object.keys(groupedEntries).length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -356,9 +361,10 @@ export default function TimelinePage() {
                               href={item.link}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-charcoal-muted hover:text-charcoal"
+                              aria-label={`Open ${item.title} in a new tab`}
+                              className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-charcoal-muted hover:text-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal"
                             >
-                              <ExternalLink className="w-4 h-4 text-charcoal-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                              <ExternalLink className="w-4 h-4 text-charcoal-muted opacity-60 group-hover:opacity-100 transition-opacity" />
                             </a>
                           )}
                         </h4>

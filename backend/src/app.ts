@@ -3,6 +3,7 @@ dns.setDefaultResultOrder('ipv4first');
 
 import express from 'express';
 import compression from 'compression';
+import path from 'path';
 import { applySecurityMiddleware } from './middleware/security.js';
 import { enforceHttps } from './middleware/enforceHttps.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -22,6 +23,9 @@ app.use(compression());
 
 // Apply Security headers, CORS, and body size limits
 applySecurityMiddleware(app);
+
+// Serve locally uploaded files (e.g. avatars) statically
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Top-level /health route for cloud provider container health checks
 app.use('/health', healthRoutes);

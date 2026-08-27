@@ -3,7 +3,7 @@
  * 
  * Loads, parses, and validates environment variables using Zod schemas.
  * Guarantees type-safe access to runtime configurations including database connection strings,
- * Supabase integration keys, Gemini AI parameters, CORS settings, and application limits.
+ * JWT authentication secrets, Gemini AI parameters, CORS settings, and application limits.
  */
 
 import dotenv from 'dotenv';
@@ -42,17 +42,14 @@ const envSchema = z.object({
     .string()
     .default('postgresql://postgres:postgres@localhost:5432/momentum_db'),
     
-  /** Direct database URL for Prisma migrations when using connection poolers. */
+  /** Direct database URL for Prisma migrations when using connection poolers (optional). */
   DIRECT_URL: z.string().optional(),
   
-  /** Supabase project URL. */
-  SUPABASE_URL: z.string().default(''),
-  
-  /** Supabase anonymous client API key. */
-  SUPABASE_ANON_KEY: z.string().default(''),
-  
-  /** Supabase service role key for administrative backend operations. */
-  SUPABASE_SERVICE_ROLE_KEY: z.string().default(''),
+  /** Secret key for signing and verifying JWT authentication tokens. */
+  JWT_SECRET: z.string().default('momentum-dev-jwt-secret-key-32chars!'),
+
+  /** Token expiration duration string (e.g. '7d', '24h', '30d'). */
+  JWT_EXPIRES_IN: z.string().default('7d'),
   
   /** Google Gemini API key for AI insight generation. */
   GEMINI_API_KEY: z.string().optional(),
@@ -79,25 +76,21 @@ const envSchema = z.object({
 
   const required: Array<[string, string | undefined]> = [
     ['DATABASE_URL', values.DATABASE_URL],
-    ['DIRECT_URL', values.DIRECT_URL],
-    ['SUPABASE_URL', values.SUPABASE_URL],
-    ['SUPABASE_ANON_KEY', values.SUPABASE_ANON_KEY],
-    ['SUPABASE_SERVICE_ROLE_KEY', values.SUPABASE_SERVICE_ROLE_KEY],
+    ['JWT_SECRET', values.JWT_SECRET],
   ];
   for (const [name, value] of required) {
-    if (!value || value.includes('placeholder') || value.includes('[YOUR-')) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [name], message: `${name} is required in production` });
+    if (!value || value.includes('placeholder') || value.includes('[YOUR-') || value === 'momentum-dev-jwt-secret-key-32chars!') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [name], message: `${name} is required and must not use the default value in production` });
     }
   }
   if (values.CORS_ORIGIN.split(',').map((origin) => origin.trim()).includes('*')) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['CORS_ORIGIN'], message: 'Wildcard CORS is forbidden in production' });
   }
   try {
-    new URL(values.SUPABASE_URL);
     new URL(values.DATABASE_URL);
     if (values.DIRECT_URL) new URL(values.DIRECT_URL);
   } catch {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Production service and database URLs must be valid URLs' });
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Production database URLs must be valid URLs' });
   }
 });
 

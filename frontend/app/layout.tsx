@@ -1,13 +1,21 @@
 import type { Metadata } from "next";
+import { Instrument_Serif, Inter } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/navigation/Header";
-import QuickCaptureModal from "@/components/ui/QuickCaptureModal";
-import ImportModal from "@/components/ui/ImportModal";
-import PageTransition from "@/components/ui/PageTransition";
-import FloatingLogButton from "@/components/ui/FloatingLogButton";
+import AppShell from "@/components/navigation/AppShell";
 
-import InstallPromptBanner from "@/components/pwa/InstallPromptBanner";
-import MobileBottomNav from "@/components/navigation/MobileBottomNav";
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-serif",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Momentum — Quiet reflection for self-directed learners",
@@ -35,16 +43,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="bg-canvas text-charcoal min-h-screen flex flex-col font-sans selection:bg-[#A5B4FC]">
-        <Header />
-        <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-20 sm:pb-8">
-          <PageTransition>{children}</PageTransition>
-        </main>
-        <QuickCaptureModal />
-        <ImportModal />
-        <FloatingLogButton />
-        <InstallPromptBanner />
-        <MobileBottomNav />
+      <body className={`${inter.variable} ${instrumentSerif.variable} bg-canvas text-charcoal min-h-screen flex flex-col font-sans selection:bg-[#A5B4FC]`}>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

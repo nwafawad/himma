@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ExternalLink, Loader2, RotateCw, ChevronDown } from "lucide-react";
 import { fetchApi } from "@/lib/api";
@@ -46,10 +46,14 @@ export default function ActivityFeed() {
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [hasMore, setHasMore] = useState<boolean>(activityFeedHasMoreCache);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const refreshInFlight = useRef(false);
 
   const loadActivities = useCallback(async (isManual = false) => {
-    if (isManual && refreshing) return;
-    if (isManual) setRefreshing(true);
+    if (isManual && refreshInFlight.current) return;
+    if (isManual) {
+      refreshInFlight.current = true;
+      setRefreshing(true);
+    }
     setErrorMessage("");
     try {
       const response = await fetchApi<{ data?: any[]; pagination?: { hasMore: boolean } }>("/activities?limit=15&offset=0");
@@ -77,8 +81,9 @@ export default function ActivityFeed() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      refreshInFlight.current = false;
     }
-  }, [refreshing]);
+  }, []);
 
   const loadMoreActivities = async () => {
     if (loadingMore || !hasMore) return;
@@ -151,7 +156,7 @@ export default function ActivityFeed() {
             disabled={refreshing || loading}
             title="Refresh activities"
             aria-label="Refresh activities"
-            className="p-1.5 rounded-lg border border-border-light bg-card hover:border-charcoal/20 text-charcoal-muted hover:text-charcoal transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center"
+            className="min-h-11 min-w-11 p-2 rounded-xl border border-border-light bg-card hover:border-charcoal/20 text-charcoal-muted hover:text-charcoal transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal"
           >
             <RotateCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-charcoal" : ""}`} />
           </button>
@@ -168,7 +173,7 @@ export default function ActivityFeed() {
         {errorMessage && (
           <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             <span>{errorMessage}</span>
-            <button type="button" onClick={() => loadActivities(true)} className="shrink-0 rounded-full border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100">Retry</button>
+            <button type="button" onClick={() => loadActivities(true)} className="shrink-0 min-h-10 rounded-full border border-red-300 px-4 py-2 text-xs font-medium hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">Retry</button>
           </div>
         )}
         <AnimatePresence mode="popLayout">
@@ -177,7 +182,7 @@ export default function ActivityFeed() {
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>Fetching logged activities...</span>
             </div>
-          ) : activities.length === 0 ? (
+          ) : errorMessage ? null : activities.length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -215,9 +220,10 @@ export default function ActivityFeed() {
                           href={item.link}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-charcoal-muted hover:text-charcoal"
+                          aria-label={`Open ${item.title} in a new tab`}
+                          className="inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg text-charcoal-muted hover:text-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal"
                         >
-                          <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 transition-opacity text-charcoal-muted inline" />
+                          <ExternalLink className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity text-charcoal-muted inline" />
                         </a>
                       )}
                     </h4>
@@ -238,7 +244,7 @@ export default function ActivityFeed() {
               type="button"
               onClick={loadMoreActivities}
               disabled={loadingMore}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-card hover:bg-card-muted border border-border-light text-charcoal text-xs font-medium transition-all shadow-2xs hover:shadow-xs active:scale-95 disabled:opacity-50"
+              className="inline-flex min-h-11 items-center gap-2 px-5 py-2.5 rounded-full bg-card hover:bg-card-muted border border-border-light text-charcoal text-xs font-medium transition-all shadow-sm hover:shadow active:scale-95 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal"
             >
               {loadingMore ? (
                 <>

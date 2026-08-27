@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X, Check, Loader2, AlertCircle } from "lucide-react";
 import { fetchApi } from "@/lib/api";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
 
 export default function QuickCaptureModal() {
   const [open, setOpen] = useState(false);
@@ -14,6 +15,7 @@ export default function QuickCaptureModal() {
   const [saved, setSaved] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [warningMessage, setWarningMessage] = useState("");
+  const { isOnline, saveOfflineDraft } = useOfflineSync();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -23,10 +25,26 @@ export default function QuickCaptureModal() {
       }
     };
 
-    const handleCustomOpen = () => setOpen(true);
+    const handleCustomOpen = () => {
+      setErrorMessage("");
+      setWarningMessage("");
+      setOpen(true);
+    };
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("open-quick-capture", handleCustomOpen);
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("action") === "log") {
+      handleCustomOpen();
+      params.delete("action");
+      const nextSearch = params.toString();
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`,
+      );
+    }
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
@@ -36,14 +54,53 @@ export default function QuickCaptureModal() {
 
   const [submitting, setSubmitting] = useState<boolean>(false);
 
+  const resetCapture = (delayMs: number) => {
+    window.setTimeout(() => {
+      setSaved(false);
+      setOpen(false);
+      setTitle("");
+      setContent("");
+      setWarningMessage("");
+    }, delayMs);
+  };
+
+  const queueCurrentEntry = (message: string) => {
+    const queued = saveOfflineDraft({
+      title: title.trim(),
+      type,
+      content: content.trim(),
+      category,
+    });
+
+    if (!queued) return false;
+
+    setWarningMessage(message);
+    setSaved(true);
+    resetCapture(1800);
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting || saved || !title.trim()) return;
 
-    setSubmitting(true);
     setErrorMessage("");
     setWarningMessage("");
+
+    if (!isOnline || !navigator.onLine) {
+      if (
+        !queueCurrentEntry(
+          "Saved on this device. Momentum will sync it when you reconnect.",
+        )
+      ) {
+        setErrorMessage("This entry could not be saved on this device.");
+      }
+      return;
+    }
+
+    setSubmitting(true);
     let partialFailure = false;
+    let queuedAfterNetworkFailure = false;
 
     try {
       const actType = type === "url" ? "article" : "other";
@@ -81,22 +138,36 @@ export default function QuickCaptureModal() {
       setSaved(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to save this entry.";
-      setErrorMessage(message);
-      return;
+      if (message.includes("Unable to connect")) {
+        queuedAfterNetworkFailure = queueCurrentEntry(
+          "The server could not be reached, so this entry was saved on your device and will retry automatically.",
+        );
+      }
+
+      if (!queuedAfterNetworkFailure) {
+        setErrorMessage(message);
+        return;
+      }
     } finally {
       setSubmitting(false);
     }
 
-    setTimeout(() => {
-      setSaved(false);
-      setOpen(false);
-      setTitle("");
-      setContent("");
-    }, partialFailure ? 2400 : 800);
+    if (!queuedAfterNetworkFailure) {
+      resetCapture(partialFailure ? 2400 : 800);
+    }
   };
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) {
+          setErrorMessage("");
+          setWarningMessage("");
+        }
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-charcoal/40 backdrop-blur-sm z-50 animate-fade-in" />
         <Dialog.Content className="fixed bottom-0 inset-x-0 sm:bottom-auto sm:top-[15%] sm:left-[50%] sm:-translate-x-1/2 w-full max-w-lg bg-card rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl border border-border-light z-50 focus:outline-none max-h-[90vh] overflow-y-auto">
@@ -130,11 +201,12 @@ export default function QuickCaptureModal() {
               </div>
             )}
             {/* Type selector */}
-            <div className="flex gap-2 p-1 bg-card-muted rounded-lg text-xs">
+            <div className="flex gap-2 p-1 bg-card-muted rounded-lg text-xs" role="group" aria-label="Entry type">
               <button
                 type="button"
                 onClick={() => setType("note")}
-                className={`flex-1 py-2 sm:py-1.5 rounded-md font-medium transition-all ${
+                aria-pressed={type === "note"}
+                className={`flex-1 min-h-11 py-2 sm:py-1.5 rounded-md font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal ${
                   type === "note"
                     ? "bg-white text-charcoal shadow-sm"
                     : "text-charcoal-muted hover:text-charcoal"
@@ -145,7 +217,8 @@ export default function QuickCaptureModal() {
               <button
                 type="button"
                 onClick={() => setType("url")}
-                className={`flex-1 py-2 sm:py-1.5 rounded-md font-medium transition-all ${
+                aria-pressed={type === "url"}
+                className={`flex-1 min-h-11 py-2 sm:py-1.5 rounded-md font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal ${
                   type === "url"
                     ? "bg-white text-charcoal shadow-sm"
                     : "text-charcoal-muted hover:text-charcoal"
@@ -157,11 +230,13 @@ export default function QuickCaptureModal() {
 
             {/* Title / Input */}
             <div>
-              <label className="block text-xs uppercase tracking-wider text-charcoal-muted font-medium mb-1">
+              <label htmlFor="capture-title" className="block text-xs uppercase tracking-wider text-charcoal-muted font-medium mb-1">
                 {type === "note" ? "Title / Summary" : "URL Link"}
               </label>
               <input
                 type="text"
+                id="capture-title"
+                name="capture-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={
@@ -169,23 +244,24 @@ export default function QuickCaptureModal() {
                     ? "What did you focus on today?"
                     : "https://github.com/..."
                 }
-                className="w-full px-3.5 py-2.5 sm:py-2 text-base sm:text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal placeholder-charcoal-muted/60 focus:outline-none focus:border-charcoal transition-colors"
+                className="w-full min-h-11 px-3.5 py-2.5 sm:py-2 text-base sm:text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal placeholder-charcoal-muted/60 focus:outline-none focus:ring-2 focus:ring-charcoal focus:ring-offset-1 transition-colors"
                 autoFocus
               />
             </div>
 
             {/* Category Selector */}
             <div>
-              <label className="block text-xs uppercase tracking-wider text-charcoal-muted font-medium mb-1">
+              <span className="block text-xs uppercase tracking-wider text-charcoal-muted font-medium mb-1">
                 Category
-              </label>
-              <div className="flex flex-wrap gap-2">
+              </span>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Category">
                 {["ENGINEERING", "SYSTEMS", "PRODUCT"].map((cat) => (
                   <button
                     key={cat}
                     type="button"
                     onClick={() => setCategory(cat)}
-                    className={`text-[11px] uppercase tracking-wider px-3.5 py-1.5 rounded-full border transition-all ${
+                    aria-pressed={category === cat}
+                    className={`min-h-11 text-xs uppercase tracking-wider px-3.5 py-1.5 rounded-full border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal ${
                       category === cat
                         ? "bg-charcoal text-white border-charcoal"
                         : "bg-badge-driftBg text-badge-driftText border-transparent hover:border-border-light"
@@ -199,15 +275,17 @@ export default function QuickCaptureModal() {
 
             {/* Notes textarea */}
             <div>
-              <label className="block text-xs uppercase tracking-wider text-charcoal-muted font-medium mb-1">
+              <label htmlFor="capture-notes" className="block text-xs uppercase tracking-wider text-charcoal-muted font-medium mb-1">
                 Key Insights & Takeaways
               </label>
               <textarea
                 value={content}
+                id="capture-notes"
+                name="capture-notes"
                 onChange={(e) => setContent(e.target.value)}
                 rows={3}
                 placeholder="Add contextual thoughts or key observations..."
-                className="w-full px-3.5 py-2.5 sm:py-2 text-base sm:text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal placeholder-charcoal-muted/60 focus:outline-none focus:border-charcoal transition-colors resize-none"
+                className="w-full px-3.5 py-2.5 sm:py-2 text-base sm:text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal placeholder-charcoal-muted/60 focus:outline-none focus:ring-2 focus:ring-charcoal focus:ring-offset-1 transition-colors resize-none"
               />
             </div>
 
@@ -216,7 +294,7 @@ export default function QuickCaptureModal() {
               <button
                 type="submit"
                 disabled={submitting || saved || !title.trim()}
-                className="inline-flex items-center gap-1.5 rounded-full bg-charcoal hover:bg-black text-white px-5 py-2 text-sm font-medium transition-all shadow active:scale-95 disabled:opacity-70 disabled:pointer-events-none"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-charcoal hover:bg-black text-white px-5 py-2 text-sm font-medium transition-all shadow active:scale-95 disabled:opacity-70 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-offset-2"
               >
                 {submitting ? (
                   <>

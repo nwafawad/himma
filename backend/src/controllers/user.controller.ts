@@ -30,7 +30,7 @@ export const exportUserData = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * Handles DELETE `/api/user/account` request to permanently delete user account data from PostgreSQL and Supabase Auth.
+ * Handles DELETE `/api/user/account` request to permanently delete user account data from PostgreSQL database.
  *
  * @param req - Express Request object containing authenticated `req.user`.
  * @param res - Express Response object.

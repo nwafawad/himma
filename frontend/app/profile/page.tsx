@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { fetchApi } from "@/lib/api";
-import { supabase } from "@/lib/supabaseClient";
-import { User, Target, Sparkles, Download, Trash2, Check, Loader2, Mail, Calendar, ShieldCheck, Camera } from "lucide-react";
+import { authClient } from "@/lib/authClient";
+import { User, Target, Download, Check, Loader2, Mail, Calendar, ShieldCheck, Camera } from "lucide-react";
 
 interface ProfileData {
   targetPath: string | null;
@@ -11,11 +11,14 @@ interface ProfileData {
   interests: string[];
 }
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const BACKEND_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, "");
+
 export default function ProfilePage() {
   const [userEmail, setUserEmail] = useState<string>("user@momentum.app");
   const [userName, setUserName] = useState<string>("Momentum Scholar");
-  const [createdAt, setCreatedAt] = useState<string>("August 2026");
-  const [provider, setProvider] = useState<string>("Google");
+  const [createdAt, setCreatedAt] = useState<string>("Local Account");
+  const [provider, setProvider] = useState<string>("Local Auth");
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -50,22 +53,30 @@ export default function ProfilePage() {
           setInterestsInput("High-throughput microservices, Consensus algorithms, Event Sourcing");
         }
 
-        // Load user auth metadata from Supabase
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setUserEmail(session.user.email || "user@momentum.app");
-          setUserName(session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Momentum Scholar");
+        // Load user auth metadata from authClient
+        const currentUser = authClient.getUser();
+        if (currentUser) {
+          setUserEmail(currentUser.email || "user@momentum.app");
+          setUserName(currentUser.name || currentUser.email?.split("@")[0] || "Momentum Scholar");
           
-          const oauthAvatar = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null;
-          // Prioritize database avatar, fall back to OAuth avatar
-          setUserAvatar(dbAvatar || oauthAvatar);
-
-          if (session.user.created_at) {
-            setCreatedAt(new Date(session.user.created_at).toLocaleDateString("en-US", { month: "long", year: "numeric" }));
+          if (dbAvatar) {
+            const resolvedAvatar = dbAvatar.startsWith("/uploads")
+              ? `${BACKEND_BASE_URL}${dbAvatar}`
+              : dbAvatar;
+            setUserAvatar(resolvedAvatar);
+          } else if (currentUser.avatarUrl) {
+            setUserAvatar(currentUser.avatarUrl);
           }
-          setProvider(session.user.app_metadata?.provider || "email");
+
+          if (currentUser.createdAt) {
+            setCreatedAt(new Date(currentUser.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" }));
+          }
+          setProvider("Local Auth");
         } else if (dbAvatar) {
-          setUserAvatar(dbAvatar);
+          const resolvedAvatar = dbAvatar.startsWith("/uploads")
+            ? `${BACKEND_BASE_URL}${dbAvatar}`
+            : dbAvatar;
+          setUserAvatar(resolvedAvatar);
         }
       } catch (err) {
         console.warn("Using local profile state defaults:", err);
@@ -83,33 +94,28 @@ export default function ProfilePage() {
 
     setUploadingAvatar(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) throw new Error("You must be signed in to upload an avatar.");
-      const userId = session.user.id;
-      const fileExt = file.name.split(".").pop();
-      const filePath = `avatars/${userId}-${Date.now()}.${fileExt}`;
+      const user = authClient.getUser();
+      if (!user) throw new Error("You must be signed in to upload an avatar.");
 
-      // Upload to Supabase Storage bucket 'avatars'
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, file, { upsert: true });
+      const formData = new FormData();
+      formData.append("avatar", file);
 
-      let publicUrl = "";
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
-        publicUrl = urlData.publicUrl;
-      } else {
-        // Fallback for local preview if Supabase Storage bucket is not publicly initialized
-        publicUrl = URL.createObjectURL(file);
-      }
+      // Upload to local backend storage endpoint
+      const uploadRes = await fetchApi<{ data: { url: string } }>("/upload/avatar", {
+        method: "POST",
+        body: formData,
+      });
 
-      setUserAvatar(publicUrl);
+      const relativeUrl = uploadRes.data.url;
+      const fullUrl = `${BACKEND_BASE_URL}${relativeUrl}`;
+
+      setUserAvatar(fullUrl);
 
       // Persist avatarUrl to backend database
       await fetchApi("/profile", {
         method: "PUT",
         body: JSON.stringify({
-          avatarUrl: publicUrl,
+          avatarUrl: relativeUrl,
           targetPath,
           currentSkills: skillsInput.split(",").map((s) => s.trim()).filter(Boolean),
           interests: interestsInput.split(",").map((i) => i.trim()).filter(Boolean),

@@ -1,20 +1,11 @@
-import { supabase } from "@/lib/supabaseClient";
+import { authClient } from "@/lib/authClient";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
 export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   
-  let token: string | null = null;
-
-  if (typeof window !== "undefined") {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      token = session?.access_token ?? null;
-    } catch {
-      token = null;
-    }
-  }
+  const token = typeof window !== "undefined" ? authClient.getToken() : null;
 
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
 
@@ -32,7 +23,7 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
 
     if (response.status === 401) {
       if (typeof window !== "undefined") {
-        await supabase.auth.signOut().catch(() => {});
+        authClient.clearSession();
         if (!window.location.pathname.startsWith("/login") && !window.location.pathname.startsWith("/auth")) {
           window.location.href = "/login";
         }

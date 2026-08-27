@@ -2,11 +2,13 @@
  * @fileoverview Main API router module.
  * 
  * Aggregates and mounts all domain-specific routers onto the Express application,
- * providing both core application routes and future phase extension/integration endpoints.
+ * providing authentication, profile, notes, activities, insights, uploads, and integrations.
  */
 
 import { Router } from 'express';
 import healthRoutes from './health.routes.js';
+import authRoutes from './auth.routes.js';
+import uploadRoutes from './upload.routes.js';
 import activitiesRoutes from './activities.routes.js';
 import notesRoutes from './notes.routes.js';
 import profileRoutes from './profile.routes.js';
@@ -25,6 +27,18 @@ const router = Router();
 router.use('/health', healthRoutes);
 
 /**
+ * Authentication Routes
+ * User registration, login, profile inspection, and logout.
+ */
+router.use('/auth', authRoutes);
+
+/**
+ * Upload & File Routes
+ * User avatar and file uploads via Multer.
+ */
+router.use('/upload', uploadRoutes);
+
+/**
  * Core Application Domain Routes
  * Authenticated endpoints for user profiles, notes, activity tracking, history import, and AI insights.
  */
@@ -38,10 +52,9 @@ router.use('/user', userRoutes);
 
 /**
  * Extension & Integration Routes
- * Endpoints supporting browser extensions and external OAuth integrations.
+ * Endpoints supporting browser extensions and external integrations.
  */
 router.use('/extension', extensionRoutes);
 router.use('/integrations', integrationsRoutes);
 
 export default router;
-

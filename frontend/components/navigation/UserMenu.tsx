@@ -5,34 +5,34 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as Popover from "@radix-ui/react-popover";
 import { User, Settings, LogOut, ChevronDown } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
+import { authClient, AuthUser } from "@/lib/authClient";
 import { fetchApi } from "@/lib/api";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const BACKEND_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, "");
 
 export default function UserMenu() {
   const router = useRouter();
-  const [userName, setUserName] = useState<string>("");
-  const [userEmail, setUserEmail] = useState<string>("");
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function checkUserSession() {
+    async function initUserSession() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setUserEmail(session.user.email || "");
-          setUserName(
-            session.user.user_metadata?.full_name ||
-            session.user.email?.split("@")[0] ||
-            "Scholar"
-          );
+        const currentUser = authClient.getUser();
+        setUser(currentUser);
 
-          // Fetch database profile avatar first to ensure custom uploads take priority
+        if (currentUser) {
+          // Fetch database profile avatar
           const profileRes = await fetchApi<{ data?: { avatarUrl?: string } }>("/profile").catch(() => null);
           const dbAvatar = profileRes?.data?.avatarUrl;
-          const oauthAvatar = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture;
-
-          setUserAvatar(dbAvatar || oauthAvatar || null);
+          if (dbAvatar) {
+            const resolvedAvatar = dbAvatar.startsWith("/uploads")
+              ? `${BACKEND_BASE_URL}${dbAvatar}`
+              : dbAvatar;
+            setUserAvatar(resolvedAvatar);
+          }
         }
       } catch (err) {
         console.warn("Session retrieval warning:", err);
@@ -41,46 +41,34 @@ export default function UserMenu() {
       }
     }
 
-    checkUserSession();
+    initUserSession();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session?.user) {
-          setUserEmail(session.user.email || "");
-          setUserName(
-            session.user.user_metadata?.full_name ||
-            session.user.email?.split("@")[0] ||
-            "Scholar"
-          );
-          setUserAvatar(session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null);
-        } else {
-          setUserEmail("");
-          setUserName("");
-          setUserAvatar(null);
-        }
+    const listener = authClient.onAuthStateChange((updatedUser) => {
+      setUser(updatedUser);
+      if (!updatedUser) {
+        setUserAvatar(null);
       }
-    );
+    });
 
     return () => {
-      authListener.subscription.unsubscribe();
+      listener.unsubscribe();
     };
   }, []);
 
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut();
+      await authClient.signOut();
     } catch (err) {
       console.warn("Sign out warning:", err);
     } finally {
-      setUserEmail("");
-      setUserName("");
+      setUser(null);
       setUserAvatar(null);
       router.push("/login");
     }
   };
 
   // If no user is logged in, show the Sign In button
-  if (!loading && !userEmail) {
+  if (!loading && !user) {
     return (
       <Link
         href="/login"
@@ -91,7 +79,10 @@ export default function UserMenu() {
     );
   }
 
-  const initials = (userName || "User")
+  const userName = user?.name || user?.email?.split("@")[0] || "Scholar";
+  const userEmail = user?.email || "";
+
+  const initials = userName
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -129,7 +120,7 @@ export default function UserMenu() {
         >
           {/* User Email & Name Summary Header */}
           <div className="px-3 py-2.5 border-b border-border-light mb-1">
-            <p className="text-xs font-semibold text-charcoal truncate">{userName || "Scholar"}</p>
+            <p className="text-xs font-semibold text-charcoal truncate">{userName}</p>
             <p className="text-[11px] text-charcoal-muted truncate font-mono">{userEmail || "user@momentum.app"}</p>
           </div>
 

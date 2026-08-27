@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Sparkles,
   Calendar,
@@ -60,6 +60,7 @@ export interface InsightRun {
 export default function InsightsPage() {
   const [insightRuns, setInsightRuns] = useState<InsightRun[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [errorMessage, setErrorMessage] = useState<string>("");
   const [generating, setGenerating] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<"all" | "completed" | "skipped">("all");
   const [notification, setNotification] = useState<{
@@ -82,21 +83,26 @@ export default function InsightsPage() {
 
   const [confirmedRunIds, setConfirmedRunIds] = useState<Set<string>>(new Set());
 
-  const loadInsights = async () => {
+  const loadInsights = useCallback(async () => {
+    setLoading(true);
+    setErrorMessage("");
     try {
       const res = await fetchApi<{ data: InsightRun[] } | InsightRun[]>("/insights");
       const list = Array.isArray(res) ? res : res.data || [];
       setInsightRuns(list);
     } catch (err: any) {
       console.warn("Could not fetch insights from backend API:", err);
+      setErrorMessage(
+        err instanceof Error ? err.message : "Unable to load career insights.",
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadInsights();
-  }, []);
+  }, [loadInsights]);
 
   const handleGenerateInsight = async () => {
     if (generating) return;
@@ -224,7 +230,7 @@ export default function InsightsPage() {
         <button
           onClick={handleGenerateInsight}
           disabled={generating}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-amber-400 hover:bg-amber-500 active:scale-95 text-amber-950 font-semibold text-xs shadow-sm border border-amber-500/20 transition-all disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-amber-400 hover:bg-amber-500 active:scale-95 text-amber-950 font-semibold text-xs shadow-sm border border-amber-500/20 transition-all disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-2"
         >
           {generating ? (
             <>
@@ -243,6 +249,7 @@ export default function InsightsPage() {
       {/* Notifications */}
       {notification && (
         <div
+          role={notification.type === "error" ? "alert" : "status"}
           className={`p-4 rounded-xl text-xs flex items-center justify-between border ${
             notification.type === "success"
               ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300"
@@ -266,13 +273,27 @@ export default function InsightsPage() {
         </div>
       )}
 
+      {errorMessage && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <span>{errorMessage}</span>
+          <button
+            type="button"
+            onClick={() => void loadInsights()}
+            className="shrink-0 min-h-10 rounded-full border border-red-300 px-4 py-2 text-xs font-medium hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Filter Tabs */}
-      <div className="flex items-center gap-2 border-b border-border-light pb-2">
+      <div className="flex items-center gap-2 border-b border-border-light pb-2" role="group" aria-label="Insight status filters">
         {(["all", "completed", "skipped"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+            aria-pressed={activeTab === tab}
+            className={`min-h-10 px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal ${
               activeTab === tab
                 ? "bg-charcoal text-white dark:bg-card-muted dark:text-charcoal"
                 : "text-charcoal-muted hover:text-charcoal hover:bg-card-muted"
@@ -290,7 +311,7 @@ export default function InsightsPage() {
             <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
             <span>Loading career insights...</span>
           </div>
-        ) : filteredRuns.length === 0 ? (
+        ) : errorMessage ? null : filteredRuns.length === 0 ? (
           <div className="p-12 rounded-2xl bg-card border border-border-light text-center space-y-3">
             <Sparkles className="w-8 h-8 text-indigo-400 mx-auto" />
             <h3 className="font-semibold text-charcoal text-base">No insight runs recorded</h3>

@@ -488,7 +488,7 @@ export default function ImportModal() {
             <div className="py-4 flex-1 flex flex-col min-h-0 space-y-4">
               {/* Deduplication Summary Alert Banner */}
               {dedupStats && dedupStats.duplicatesSkipped > 0 && (
-                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-between text-xs text-amber-900 shrink-0 shadow-2xs">
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-between text-xs text-amber-900 shrink-0 shadow-sm">
                   <div className="flex items-center gap-2">
                     <Filter className="w-4 h-4 text-amber-600 shrink-0" />
                     <span>
