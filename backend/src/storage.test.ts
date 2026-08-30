@@ -3,8 +3,8 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { upsertProfileInputSchema } from '@himma/contracts';
 import { LocalUploadStorage } from './infrastructure/storage/localUploadStorage.js';
-import { upsertProfileSchema } from './validators/profile.schema.js';
 
 test('LocalUploadStorage persists an avatar below its configured root', async (context) => {
   const rootDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'himma-storage-'));
@@ -38,8 +38,8 @@ test('LocalUploadStorage rejects unsupported avatar formats', async () => {
 
 test('profile validation accepts hosted avatar paths and rejects arbitrary relative paths', () => {
   assert.equal(
-    upsertProfileSchema.safeParse({ avatarUrl: '/uploads/avatars/avatar-user-id.png' }).success,
+    upsertProfileInputSchema.safeParse({ avatarUrl: '/uploads/avatars/avatar-user-id.png' }).success,
     true
   );
-  assert.equal(upsertProfileSchema.safeParse({ avatarUrl: '../../private/file' }).success, false);
+  assert.equal(upsertProfileInputSchema.safeParse({ avatarUrl: '../../private/file' }).success, false);
 });

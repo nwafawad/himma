@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Instrument_Serif, Inter } from "next/font/google";
 import "./globals.css";
-import AppShell from "@/components/navigation/AppShell";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -20,6 +19,10 @@ const instrumentSerif = Instrument_Serif({
 export const metadata: Metadata = {
   title: "Momentum — Quiet reflection for self-directed learners",
   description: "Log study activity and view AI-generated career direction insights.",
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/apple-icon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -44,7 +47,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} ${instrumentSerif.variable} bg-canvas text-charcoal min-h-screen flex flex-col font-sans selection:bg-[#A5B4FC]`}>
-        <AppShell>{children}</AppShell>
+        {children}
       </body>
     </html>
   );

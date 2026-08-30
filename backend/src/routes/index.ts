@@ -6,17 +6,17 @@
  */
 
 import { Router } from 'express';
-import healthRoutes from './health.routes.js';
-import authRoutes from './auth.routes.js';
-import uploadRoutes from './upload.routes.js';
+import healthRoutes from '../modules/health/health.routes.js';
+import authRoutes from '../modules/auth/auth.routes.js';
+import uploadRoutes from '../modules/profile/avatar.routes.js';
 import activitiesRoutes from '../modules/activities/activities.routes.js';
-import notesRoutes from './notes.routes.js';
-import profileRoutes from './profile.routes.js';
-import insightsRoutes from './insights.routes.js';
-import userRoutes from './user.routes.js';
-import extensionRoutes from './extension.routes.js';
-import integrationsRoutes from './integrations.routes.js';
-import importRoutes from './import.routes.js';
+import notesRoutes from '../modules/notes/notes.routes.js';
+import profileRoutes from '../modules/profile/profile.routes.js';
+import insightsRoutes from '../modules/insights/insights.routes.js';
+import userRoutes from '../modules/users/user.routes.js';
+import extensionRoutes from '../modules/extension/extension.routes.js';
+import integrationsRoutes from '../modules/integrations/integrations.routes.js';
+import importRoutes from '../modules/imports/import.routes.js';
 import { markDeprecatedRoute } from '../middleware/deprecation.js';
 
 const router = Router();

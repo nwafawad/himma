@@ -48,7 +48,7 @@ In modern self-directed learning, knowledge workers, researchers, and engineers 
 - **Browser History Import**: Upload JSON export files (up to 5MB) with automatic noise filtering and domain normalization.
 - **URL Staging & Metadata Scraping**: Paste URL batches; the backend infers titles, resource types (`article`, `video`, `course`, `repository`), and tags.
 - **Staging Candidate Workflow**: Review candidate items in a staging queue with `pending`, `approved`, or `rejected` states.
-- **Chrome Extension API**: Dedicated endpoints (`/api/extension/*`) for frictionless background domain tracking.
+- **Chrome Extension API**: Dedicated endpoints (`/api/v1/extension/*`) for frictionless background domain tracking.
 
 ### 📝 4. Notes & Reflection Links
 - Rich reflection notes linked directly to specific learning activities or saved as standalone thoughts.
@@ -60,33 +60,38 @@ In modern self-directed learning, knowledge workers, researchers, and engineers 
 - Installable on iOS, Android, macOS, and Windows with Web Push notification hooks.
 
 ### 🛡️ 6. Privacy, Security & Data Ownership
-- **Complete Data Export**: One-click download of the user's entire dataset as a structured JSON bundle (`/api/user/export`).
-- **Right-to-Be-Forgotten**: Complete account deletion cascading across database records (`DELETE /api/user/account`).
+- **Complete Data Export**: One-click download of the user's entire dataset as a structured JSON bundle (`/api/v1/user/export`).
+- **Right-to-Be-Forgotten**: Complete account deletion cascading across database records (`DELETE /api/v1/user/account`).
 - **Security-First Backend**: Enforces `helmet`, parameterized queries via Prisma, strict Zod validation schemas, bcrypt password hashing, and rate limiting.
 
 ---
 
 ## 🏛️ Architecture & Tech Stack
 
+See [docs/architecture.md](docs/architecture.md) for dependency rules and the
+feature-module conventions.
+
 ```
 himma/
 ├── docker-compose.yml    # Local PostgreSQL database container
 ├── frontend/             # Next.js 14 App Router client (PWA)
-│   ├── app/              # Routes (dashboard, timeline, insights, profile, settings, etc.)
-│   ├── components/       # Radix UI + Framer Motion components
+│   ├── app/              # Thin route files grouped by public/authenticated shell
+│   ├── features/         # Domain UI, API functions, and view models
+│   ├── components/       # Shared UI and application shells
 │   ├── hooks/            # Custom hooks (offline sync, push notifications, intersection observer)
 │   ├── lib/              # API clients, local auth client, and utilities
 │   └── public/           # PWA manifests, icons, service worker assets
 ├── backend/              # Node.js + Express + TypeScript API
 │   ├── src/
 │   │   ├── config/       # Environment parsing, Prisma client, database connection pool
-│   │   ├── controllers/  # REST controllers (auth, activities, notes, insights, import, user, upload)
+│   │   ├── modules/      # Domain routes, controllers, services, and local schemas
+│   │   ├── jobs/         # Background schedulers and batch orchestration
+│   │   ├── infrastructure/ # Replaceable storage adapters
 │   │   ├── middleware/   # JWT authentication, rate limiters, validation
-│   │   ├── routes/       # Express route definitions
-│   │   ├── schemas/      # Zod validation schemas
-│   │   └── services/     # Business logic, auth, AI engine, batch scheduler, digest service
+│   │   └── routes/       # Top-level API router composition
 │   ├── uploads/          # Local storage for avatars and media uploads
 │   └── prisma/           # Database schema definition, migrations, and seeds
+├── packages/contracts/   # Shared Zod HTTP schemas and inferred TypeScript types
 └── package.json          # Monorepo root orchestration with concurrently
 ```
 
@@ -122,7 +127,7 @@ himma/
 git clone https://github.com/your-username/himma.git
 cd himma
 
-# Install dependencies across root, backend, and frontend
+# Install every workspace from the root lockfile
 npm run install:all
 ```
 
@@ -168,7 +173,7 @@ MAX_TOKENS_PER_RUN=8000
 
 #### Frontend Configuration (`frontend/.env.local`)
 ```env
-NEXT_PUBLIC_API_URL="http://localhost:8000/api"
+NEXT_PUBLIC_API_URL="http://localhost:8000/api/v1"
 ```
 
 ---
@@ -194,37 +199,40 @@ npm run dev
 ```
 
 - **Frontend**: `http://localhost:3000`
-- **Backend API**: `http://localhost:8000/api`
+- **Backend API**: `http://localhost:8000/api/v1`
 - **Health Check**: `http://localhost:8000/health`
 
 ---
 
 ## 📡 API Endpoints Reference
 
-All protected endpoints require an `Authorization: Bearer <token>` header obtained from `/api/auth/login` or `/api/auth/signup`.
+`/api/v1` is the canonical API prefix. The legacy `/api` prefix remains available
+temporarily and returns an `X-API-Deprecated: true` response header.
+
+All protected endpoints require an `Authorization: Bearer <token>` header obtained from `/api/v1/auth/login` or `/api/v1/auth/signup`.
 
 ### Authentication
-- `POST /api/auth/signup` — Create a new user account with hashed password
-- `POST /api/auth/login` — Authenticate credentials and receive JWT access token
-- `GET /api/auth/me` — Retrieve current authenticated user & profile
-- `POST /api/auth/logout` — Terminate session
+- `POST /api/v1/auth/signup` — Create a new user account with hashed password
+- `POST /api/v1/auth/login` — Authenticate credentials and receive JWT access token
+- `GET /api/v1/auth/me` — Retrieve current authenticated user & profile
+- `POST /api/v1/auth/logout` — Terminate session
 
 ### Activities & Staging
-- `GET /api/activities` — Paginated activity journal
-- `POST /api/activities` — Log a new learning entry
-- `POST /api/import/urls` — Batch URL ingestion & metadata extraction
-- `POST /api/import/history` — Upload browser history JSON
+- `GET /api/v1/activities` — Paginated activity journal
+- `POST /api/v1/activities` — Log a new learning entry
+- `POST /api/v1/import/urls` — Batch URL ingestion & metadata extraction
+- `POST /api/v1/import/upload` — Upload browser history JSON
 
 ### File Uploads
-- `POST /api/upload/avatar` — Upload profile avatar image (stores in `backend/uploads/avatars/`)
+- `POST /api/v1/upload/avatar` — Upload profile avatar image (stores in `backend/uploads/avatars/`)
 
 ### AI Insights
-- `POST /api/insights/generate` — Trigger on-demand Gemini trajectory synthesis
-- `GET /api/insights/latest` — Fetch latest generated insight run
+- `POST /api/v1/insights/generate` — Trigger on-demand Gemini trajectory synthesis
+- `GET /api/v1/insights?limit=1` — Fetch the latest generated insight run
 
 ### User Data & GDPR
-- `GET /api/user/export` — Download complete GDPR data bundle (JSON)
-- `DELETE /api/user/account` — Permanently delete user account and all data
+- `GET /api/v1/user/export` — Download complete GDPR data bundle (JSON)
+- `DELETE /api/v1/user/account` — Permanently delete user account and all data
 
 ---
 
@@ -234,8 +242,24 @@ From the repository root:
 
 | Command | Description |
 | :--- | :--- |
+| `npm ci` | Reproducibly installs all workspaces from the root lockfile |
 | `npm run dev` | Runs backend and frontend concurrently |
+| `npm test` | Runs the backend test suite |
+| `npm run typecheck` | Type-checks every workspace |
 | `npm run build` | Builds both backend (tsc) and frontend (Next.js) |
+| `npm run verify` | Runs tests, typechecks, and production builds |
 | `npm run db:generate` | Generates Prisma client bindings |
 | `npm run db:deploy` | Applies committed Prisma migrations to PostgreSQL |
 | `npm run db:studio` | Opens Prisma Studio GUI on `localhost:5555` |
+
+## Container Build
+
+Build the backend image from the repository root so Docker can access the root
+workspace lockfile and the Prisma schema:
+
+```bash
+docker build -f backend/Dockerfile -t momentum-backend .
+```
+
+Railway deployments must also use the repository root (`/`) as their Root
+Directory because the backend workspace depends on files at that level.

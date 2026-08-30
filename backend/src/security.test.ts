@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Request, Response } from 'express';
-import { importUrlsSchema } from './validators/import.schema.js';
+import { importUrlsInputSchema } from '@himma/contracts';
 import { fetchPublicHtml, UnsafeUrlError } from './utils/safeFetch.js';
 import { markDeprecatedRoute } from './middleware/deprecation.js';
 
 test('URL import accepts only bounded HTTP(S) batches', () => {
-  assert.equal(importUrlsSchema.safeParse({ urls: ['https://example.com'] }).success, true);
-  assert.equal(importUrlsSchema.safeParse({ urls: ['file:///etc/passwd'] }).success, false);
-  assert.equal(importUrlsSchema.safeParse({ urls: Array(101).fill('https://example.com') }).success, false);
+  assert.equal(importUrlsInputSchema.safeParse({ urls: ['https://example.com'] }).success, true);
+  assert.equal(importUrlsInputSchema.safeParse({ urls: ['file:///etc/passwd'] }).success, false);
+  assert.equal(importUrlsInputSchema.safeParse({ urls: Array(101).fill('https://example.com') }).success, false);
 });
 
 test('metadata fetch rejects loopback and private IPv4 destinations', async () => {

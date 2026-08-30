@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowRight, Mail, Lock, User as UserIcon, AlertCircle } from "lucide-react";
 import { authClient } from "@/lib/authClient";
+import { getErrorMessage } from "@/lib/errors";
 
 export default function AuthCard() {
   const router = useRouter();
@@ -49,8 +50,8 @@ export default function AuthCard() {
           ? nextPath
           : "/dashboard";
       router.push(safeNextPath);
-    } catch (err: any) {
-      setErrorMsg(err instanceof Error ? err.message : "Authentication failed.");
+    } catch (err: unknown) {
+      setErrorMsg(getErrorMessage(err, "Authentication failed."));
     } finally {
       setLoading(false);
     }

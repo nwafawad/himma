@@ -1,18 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateToken } from './services/auth.service.js';
+import { loginInputSchema, signUpInputSchema } from '@himma/contracts';
+import { generateToken } from './modules/auth/auth.service.js';
 import { LocalJwtAuthProvider } from './middleware/auth.js';
-import { signUpSchema, loginSchema } from './validators/auth.schema.js';
 
 test('signUpSchema validates required fields', () => {
-  assert.equal(signUpSchema.safeParse({ email: 'user@example.com', password: 'password123' }).success, true);
-  assert.equal(signUpSchema.safeParse({ email: 'invalid-email', password: 'password123' }).success, false);
-  assert.equal(signUpSchema.safeParse({ email: 'user@example.com', password: '123' }).success, false);
+  assert.equal(signUpInputSchema.safeParse({ email: 'user@example.com', password: 'password123' }).success, true);
+  assert.equal(signUpInputSchema.safeParse({ email: 'invalid-email', password: 'password123' }).success, false);
+  assert.equal(signUpInputSchema.safeParse({ email: 'user@example.com', password: '123' }).success, false);
 });
 
 test('loginSchema validates credentials structure', () => {
-  assert.equal(loginSchema.safeParse({ email: 'user@example.com', password: 'password123' }).success, true);
-  assert.equal(loginSchema.safeParse({ email: 'user@example.com', password: '' }).success, false);
+  assert.equal(loginInputSchema.safeParse({ email: 'user@example.com', password: 'password123' }).success, true);
+  assert.equal(loginInputSchema.safeParse({ email: 'user@example.com', password: '' }).success, false);
 });
 
 test('LocalJwtAuthProvider verifies generated JWT tokens correctly', async () => {

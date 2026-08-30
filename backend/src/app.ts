@@ -9,7 +9,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { markDeprecatedRoute } from './middleware/deprecation.js';
 import { uploadRootDirectory } from './infrastructure/storage/index.js';
 import apiRouter from './routes/index.js';
-import healthRoutes from './routes/health.routes.js';
+import healthRoutes from './modules/health/health.routes.js';
 
 const app = express();
 

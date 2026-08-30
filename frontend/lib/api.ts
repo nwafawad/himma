@@ -1,6 +1,6 @@
 import { authClient } from "@/lib/authClient";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
@@ -39,8 +39,8 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
 
     if (response.status === 204) return undefined as T;
     return response.json();
-  } catch (error: any) {
-    if (error.name === "TypeError" && error.message?.includes("fetch")) {
+  } catch (error: unknown) {
+    if (error instanceof TypeError && error.message.includes("fetch")) {
       throw new Error("Unable to connect to the backend server. Please check your connection.");
     }
     throw error;

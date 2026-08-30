@@ -1,18 +1,21 @@
 "use client";
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  name: string | null;
-  createdAt?: string;
-  avatarUrl?: string | null;
-}
+import {
+  authSessionResponseSchema,
+  authUserSchema,
+  currentUserResponseSchema,
+  type AuthUser,
+  type LoginInput,
+  type SignUpInput,
+} from '@himma/contracts';
+
+export type { AuthUser } from '@himma/contracts';
 
 const TOKEN_KEY = "momentum_token";
 const USER_KEY = "momentum_user";
 const AUTH_CHANGE_EVENT = "momentum-auth-change";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 class AuthClient {
   private isBrowser(): boolean {
@@ -32,7 +35,9 @@ class AuthClient {
     if (!this.isBrowser()) return null;
     try {
       const raw = localStorage.getItem(USER_KEY);
-      return raw ? JSON.parse(raw) : null;
+      if (!raw) return null;
+      const parsed = authUserSchema.safeParse(JSON.parse(raw));
+      return parsed.success ? parsed.data : null;
     } catch {
       return null;
     }
@@ -92,36 +97,38 @@ class AuthClient {
     };
   }
 
-  public async signUp(params: { email: string; password: string; name?: string }): Promise<{ token: string; user: AuthUser }> {
+  public async signUp(params: SignUpInput): Promise<{ token: string; user: AuthUser }> {
     const res = await fetch(`${API_BASE_URL}/auth/signup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     });
 
-    const body = await res.json().catch(() => ({}));
+    const body: unknown = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(body.message || "Failed to create account.");
+      const message = typeof body === 'object' && body && 'message' in body ? String(body.message) : null;
+      throw new Error(message || "Failed to create account.");
     }
 
-    const { token, user } = body.data;
+    const { token, user } = authSessionResponseSchema.parse(body).data;
     this.setSession(token, user);
     return { token, user };
   }
 
-  public async signIn(params: { email: string; password: string }): Promise<{ token: string; user: AuthUser }> {
+  public async signIn(params: LoginInput): Promise<{ token: string; user: AuthUser }> {
     const res = await fetch(`${API_BASE_URL}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     });
 
-    const body = await res.json().catch(() => ({}));
+    const body: unknown = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(body.message || "Invalid email or password.");
+      const message = typeof body === 'object' && body && 'message' in body ? String(body.message) : null;
+      throw new Error(message || "Invalid email or password.");
     }
 
-    const { token, user } = body.data;
+    const { token, user } = authSessionResponseSchema.parse(body).data;
     this.setSession(token, user);
     return { token, user };
   }
@@ -158,11 +165,13 @@ class AuthClient {
         return null;
       }
 
-      const body = await res.json();
-      const user = body.data;
-      if (user) {
-        this.setSession(token, user);
-      }
+      const response = currentUserResponseSchema.parse(await res.json());
+      const { profile, ...currentUser } = response.data;
+      const user: AuthUser = {
+        ...currentUser,
+        avatarUrl: currentUser.avatarUrl ?? profile?.avatarUrl,
+      };
+      this.setSession(token, user);
       return user;
     } catch {
       return this.getUser();

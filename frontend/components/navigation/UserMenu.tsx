@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 import * as Popover from "@radix-ui/react-popover";
 import { User, Settings, LogOut, ChevronDown } from "lucide-react";
 import { authClient, AuthUser } from "@/lib/authClient";
-import { fetchApi } from "@/lib/api";
+import { getProfile } from "@/features/profile/api";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
-const BACKEND_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, "");
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const BACKEND_BASE_URL = API_BASE_URL.replace(/\/api(?:\/v1)?\/?$/, "");
 
 export default function UserMenu() {
   const router = useRouter();
@@ -25,7 +25,7 @@ export default function UserMenu() {
 
         if (currentUser) {
           // Fetch database profile avatar
-          const profileRes = await fetchApi<{ data?: { avatarUrl?: string } }>("/profile").catch(() => null);
+          const profileRes = await getProfile().catch(() => null);
           const dbAvatar = profileRes?.data?.avatarUrl;
           if (dbAvatar) {
             const resolvedAvatar = dbAvatar.startsWith("/uploads")

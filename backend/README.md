@@ -32,7 +32,7 @@ Authentication is fully self-contained using secure password hashing and JWT acc
 ## 🧠 AI Insight Engine & Batch Scheduler
 
 ### 1. Periodic Batch Job Scheduling (`FR-4.1`, `Section 2.5`)
-- The Insight Engine runs as a background batch job (default weekly: `0 0 * * 0`) managed by [`src/services/scheduler.service.ts`](src/services/scheduler.service.ts).
+- The Insight Engine runs as a background batch job (default weekly: `0 0 * * 0`) managed by [`src/jobs/insights.scheduler.ts`](src/jobs/insights.scheduler.ts).
 - Processing occurs asynchronously outside HTTP request/response lifecycles.
 
 ### 2. Batch Failure Retries & Decoupled Writes (`NFR-4.2`, `NFR-4.3`)
@@ -40,7 +40,7 @@ Authentication is fully self-contained using secure password hashing and JWT acc
 - Failed AI runs record status in `insight_runs` without altering or corrupting user-authored `ActivityEntry` or `NoteEntry` data.
 
 ### 3. Rolling Profile Digest (`FR-4.8`)
-- User activities/notes older than the 30-day recency window are condensed into a rolling summary stored in the `ProfileDigest` table by [`src/services/ai/digest.service.ts`](src/services/ai/digest.service.ts).
+- User activities/notes older than the 30-day recency window are condensed into a rolling summary stored in the `ProfileDigest` table by [`src/modules/insights/ai/digest.service.ts`](src/modules/insights/ai/digest.service.ts).
 - The digest is injected into LLM prompt contexts to keep input tokens bounded regardless of user account age.
 
 ### 4. Insufficient-Data Handling (`FR-9.4`)
@@ -90,8 +90,8 @@ returns an `X-API-Deprecated: true` header with a successor link.
 | `/api/v1/import/candidates` | `GET` | Required | List pending/staged import candidates |
 | `/api/v1/import/confirm` | `POST` | Required | Commit approved candidates to activities |
 | `/api/v1/insights/generate` | `POST` | Required | Trigger on-demand AI insight synthesis |
-| `/api/v1/insights/latest` | `GET` | Required | Retrieve latest generated trajectory report |
-| `/api/v1/insights/history` | `GET` | Required | Paginated history of prior insight runs |
+| `/api/v1/insights` | `GET` / `POST` | Required | List or manually create insight runs |
+| `/api/v1/insights/:id` | `GET` | Required | Retrieve one generated trajectory report |
 | `/api/v1/user/export` | `GET` | Required | Download full account data (GDPR JSON) |
 | `/api/v1/user/account` | `DELETE` | Required | Erase user account & cascade-delete all data |
 
