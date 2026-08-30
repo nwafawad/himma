@@ -36,6 +36,9 @@ const envSchema = z.object({
   
   /** Frontend client URL (optional). */
   CLIENT_URL: z.string().optional(),
+
+  /** Local upload root. Production local-storage deployments must mount this path persistently. */
+  UPLOAD_DIR: z.string().min(1).default('uploads'),
   
   /** Primary PostgreSQL database connection string for Prisma. */
   DATABASE_URL: z

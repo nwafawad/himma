@@ -4,8 +4,8 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import * as activitiesService from '../services/activities.service.js';
-import { ActivityType } from '@prisma/client';
+import type { ActivityType } from '@himma/contracts';
+import * as activitiesService from './activities.service.js';
 
 /**
  * Handles GET `/api/activities` request to fetch a paginated list of user activity entries.
@@ -127,4 +127,3 @@ export const deleteActivity = async (req: Request, res: Response, next: NextFunc
     next(error);
   }
 };
-

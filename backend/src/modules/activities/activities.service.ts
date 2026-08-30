@@ -3,9 +3,9 @@
  * @description Service handling database CRUD operations for user learning activities (ActivityEntry).
  */
 
-import { prisma } from '../config/prisma.js';
-import { CreateActivityInput, UpdateActivityInput } from '../validators/activities.schema.js';
-import { ActivityType } from '@prisma/client';
+import type { ActivityType, CreateActivityInput, UpdateActivityInput } from '@himma/contracts';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 
 /**
  * Retrieves a paginated list of activity entries for a specified user, with optional filters.
@@ -26,7 +26,7 @@ export const listActivities = async (
   offset = 0,
   includeTotal = false
 ) => {
-  const where: any = { userId };
+  const where: Prisma.ActivityEntryWhereInput = { userId };
   if (type) {
     where.type = type;
   }
@@ -153,4 +153,3 @@ export const deleteActivityForUser = async (id: string, userId: string) => {
   await prisma.activityEntry.delete({ where: { id } });
   return true;
 };
-

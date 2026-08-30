@@ -22,8 +22,8 @@ Standalone REST API and AI Insight Engine backend for **Momentum (Himma)** — a
 Authentication is fully self-contained using secure password hashing and JWT access tokens.
 
 ### Backend Authentication Flow
-1. **Sign Up**: `POST /api/auth/signup` takes `{ email, password, name? }`, hashes the password with `bcryptjs`, creates the user and profile in PostgreSQL, and issues a JWT token.
-2. **Login**: `POST /api/auth/login` verifies credentials and returns a JWT access token.
+1. **Sign Up**: `POST /api/v1/auth/signup` takes `{ email, password, name? }`, hashes the password with `bcryptjs`, creates the user and profile in PostgreSQL, and issues a JWT token.
+2. **Login**: `POST /api/v1/auth/login` verifies credentials and returns a JWT access token.
 3. **Protected Requests**: Clients pass `Authorization: Bearer <token>` in headers.
 4. **Token Verification**: The Express [`requireAuth`](src/middleware/auth.ts) middleware verifies the JWT against `JWT_SECRET` and attaches the user payload to `req.user`.
 
@@ -55,42 +55,45 @@ Authentication is fully self-contained using secure password hashing and JWT acc
 ## 📥 Activity Import Module (`FR-3.1–3.4`, `NFR-2.4`)
 
 Supports importing external learning history without auto-persisting unverified items:
-1. **Browser History Upload**: `POST /api/import/upload` accepts JSON history export files up to 5MB (validated via `multer` and Zod).
-2. **Pasted URLs**: `POST /api/import/urls` accepts raw URL lists and infers item titles and activity types (`article`, `video`, `course`, `repository`).
+1. **Browser History Upload**: `POST /api/v1/import/upload` accepts JSON history export files up to 5MB (validated via `multer` and Zod).
+2. **Pasted URLs**: `POST /api/v1/import/urls` accepts raw URL lists and infers item titles and activity types (`article`, `video`, `course`, `repository`).
 3. **Candidate Staging**: Parsed items are saved into the `import_candidates` table with `status: "pending"`.
-4. **User Review & Confirmation**: `POST /api/import/confirm` converts user-approved candidate IDs into permanent `ActivityEntry` records and sets excluded IDs to `status: "rejected"`.
+4. **User Review & Confirmation**: `POST /api/v1/import/confirm` converts user-approved candidate IDs into permanent `ActivityEntry` records and sets excluded IDs to `status: "rejected"`.
 
 ---
 
 ## 🛡️ Data Privacy & Compliance (`NFR-3.4`, `Section 11.3`)
 
-- **Full Data Export**: `GET /api/user/export` returns a downloadable JSON file (`Content-Disposition: attachment`) containing the user's complete data bundle (`profile`, `activities`, `notes`, `insights`, `candidates`, `digests`).
-- **Account Deletion**: `DELETE /api/user/account` permanently deletes the user's PostgreSQL records (cascading to all associated tables).
+- **Full Data Export**: `GET /api/v1/user/export` returns a downloadable JSON file (`Content-Disposition: attachment`) containing the user's complete data bundle (`profile`, `activities`, `notes`, `insights`, `candidates`, `digests`).
+- **Account Deletion**: `DELETE /api/v1/user/account` permanently deletes the user's PostgreSQL records (cascading to all associated tables).
 
 ---
 
 ## 📡 API Endpoints Reference
 
+The canonical prefix is `/api/v1`. `/api` remains as a compatibility alias and
+returns an `X-API-Deprecated: true` header with a successor link.
+
 | Endpoint | Method | Auth | Description |
 | :--- | :---: | :---: | :--- |
 | `/health` | `GET` | Public | Service & Database health check |
-| `/api/auth/signup` | `POST` | Public | Register new account and receive JWT |
-| `/api/auth/login` | `POST` | Public | Authenticate with credentials |
-| `/api/auth/me` | `GET` | Required | Retrieve current user profile |
-| `/api/auth/logout` | `POST` | Public | Terminate session |
-| `/api/upload/avatar` | `POST` | Required | Upload profile avatar (stores locally) |
-| `/api/profile` | `GET` / `PUT` | Required | Retrieve or update user skills & goals profile |
-| `/api/activities` | `GET` / `POST` / `PUT` / `DELETE` | Required | CRUD for user learning activities |
-| `/api/notes` | `GET` / `POST` / `PUT` / `DELETE` | Required | CRUD for user notes & activity links |
-| `/api/import/upload` | `POST` | Required | Upload & parse browser history export file (staged) |
-| `/api/import/urls` | `POST` | Required | Parse & stage pasted learning URLs |
-| `/api/import/candidates` | `GET` | Required | List pending/staged import candidates |
-| `/api/import/confirm` | `POST` | Required | Commit approved candidates to activities |
-| `/api/insights/generate` | `POST` | Required | Trigger on-demand AI insight synthesis |
-| `/api/insights/latest` | `GET` | Required | Retrieve latest generated trajectory report |
-| `/api/insights/history` | `GET` | Required | Paginated history of prior insight runs |
-| `/api/user/export` | `GET` | Required | Download full account data (GDPR JSON) |
-| `/api/user/account` | `DELETE` | Required | Erase user account & cascade-delete all data |
+| `/api/v1/auth/signup` | `POST` | Public | Register new account and receive JWT |
+| `/api/v1/auth/login` | `POST` | Public | Authenticate with credentials |
+| `/api/v1/auth/me` | `GET` | Required | Retrieve current user profile |
+| `/api/v1/auth/logout` | `POST` | Public | Terminate session |
+| `/api/v1/upload/avatar` | `POST` | Required | Upload profile avatar (stores locally) |
+| `/api/v1/profile` | `GET` / `PUT` | Required | Retrieve or update user skills & goals profile |
+| `/api/v1/activities` | `GET` / `POST` / `PUT` / `DELETE` | Required | CRUD for user learning activities |
+| `/api/v1/notes` | `GET` / `POST` / `PUT` / `DELETE` | Required | CRUD for user notes & activity links |
+| `/api/v1/import/upload` | `POST` | Required | Upload & parse browser history export file (staged) |
+| `/api/v1/import/urls` | `POST` | Required | Parse & stage pasted learning URLs |
+| `/api/v1/import/candidates` | `GET` | Required | List pending/staged import candidates |
+| `/api/v1/import/confirm` | `POST` | Required | Commit approved candidates to activities |
+| `/api/v1/insights/generate` | `POST` | Required | Trigger on-demand AI insight synthesis |
+| `/api/v1/insights/latest` | `GET` | Required | Retrieve latest generated trajectory report |
+| `/api/v1/insights/history` | `GET` | Required | Paginated history of prior insight runs |
+| `/api/v1/user/export` | `GET` | Required | Download full account data (GDPR JSON) |
+| `/api/v1/user/account` | `DELETE` | Required | Erase user account & cascade-delete all data |
 
 ---
 

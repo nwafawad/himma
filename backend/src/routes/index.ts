@@ -9,7 +9,7 @@ import { Router } from 'express';
 import healthRoutes from './health.routes.js';
 import authRoutes from './auth.routes.js';
 import uploadRoutes from './upload.routes.js';
-import activitiesRoutes from './activities.routes.js';
+import activitiesRoutes from '../modules/activities/activities.routes.js';
 import notesRoutes from './notes.routes.js';
 import profileRoutes from './profile.routes.js';
 import insightsRoutes from './insights.routes.js';
@@ -17,6 +17,7 @@ import userRoutes from './user.routes.js';
 import extensionRoutes from './extension.routes.js';
 import integrationsRoutes from './integrations.routes.js';
 import importRoutes from './import.routes.js';
+import { markDeprecatedRoute } from '../middleware/deprecation.js';
 
 const router = Router();
 
@@ -44,8 +45,8 @@ router.use('/upload', uploadRoutes);
  */
 router.use('/profile', profileRoutes);
 router.use('/notes', notesRoutes);
-router.use('/activity', activitiesRoutes);
 router.use('/activities', activitiesRoutes);
+router.use('/activity', markDeprecatedRoute('/api/v1/activities'), activitiesRoutes);
 router.use('/import', importRoutes);
 router.use('/insights', insightsRoutes);
 router.use('/user', userRoutes);

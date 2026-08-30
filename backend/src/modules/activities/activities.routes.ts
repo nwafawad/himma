@@ -6,17 +6,20 @@
  */
 
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth.js';
-import { validateBody, validateParams } from '../middleware/validate.js';
-import { createActivitySchema, updateActivitySchema } from '../validators/activities.schema.js';
-import { idParamSchema } from '../validators/notes.schema.js';
+import {
+  createActivityInputSchema,
+  idParamSchema,
+  updateActivityInputSchema,
+} from '@himma/contracts';
+import { requireAuth } from '../../middleware/auth.js';
+import { validateBody, validateParams } from '../../middleware/validate.js';
 import {
   getActivities,
   createActivity,
   getActivityById,
   updateActivity,
   deleteActivity,
-} from '../controllers/activities.controller.js';
+} from './activities.controller.js';
 
 const router = Router();
 
@@ -34,7 +37,7 @@ router.get('/', getActivities);
  * Creates a new activity record.
  * Validates the request body against `createActivitySchema`.
  */
-router.post('/', validateBody(createActivitySchema), createActivity);
+router.post('/', validateBody(createActivityInputSchema), createActivity);
 
 /**
  * GET /:id
@@ -48,7 +51,7 @@ router.get('/:id', validateParams(idParamSchema), getActivityById);
  * Updates an existing activity by its UUID.
  * Validates the route parameter against `idParamSchema` and request body against `updateActivitySchema`.
  */
-router.put('/:id', validateParams(idParamSchema), validateBody(updateActivitySchema), updateActivity);
+router.put('/:id', validateParams(idParamSchema), validateBody(updateActivityInputSchema), updateActivity);
 
 /**
  * DELETE /:id
@@ -58,4 +61,3 @@ router.put('/:id', validateParams(idParamSchema), validateBody(updateActivitySch
 router.delete('/:id', validateParams(idParamSchema), deleteActivity);
 
 export default router;
-

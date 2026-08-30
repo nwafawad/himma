@@ -1,11 +1,11 @@
 services:
   - type: web
     name: momentum-backend
-    env: node
+    runtime: node
     region: frankfurt
     plan: starter
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: npm ci && npm run build:backend
+    startCommand: npm run start --workspace backend
     preDeployCommand: npm run db:deploy
     healthCheckPath: /health
     envVars:
