@@ -6,8 +6,10 @@ import compression from 'compression';
 import { applySecurityMiddleware } from './middleware/security.js';
 import { enforceHttps } from './middleware/enforceHttps.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { markDeprecatedRoute } from './middleware/deprecation.js';
+import { uploadRootDirectory } from './infrastructure/storage/index.js';
 import apiRouter from './routes/index.js';
-import healthRoutes from './routes/health.routes.js';
+import healthRoutes from './modules/health/health.routes.js';
 
 const app = express();
 
@@ -23,12 +25,15 @@ app.use(compression());
 // Apply Security headers, CORS, and body size limits
 applySecurityMiddleware(app);
 
+// Serve locally uploaded files (e.g. avatars) statically
+app.use('/uploads', express.static(uploadRootDirectory));
+
 // Top-level /health route for cloud provider container health checks
 app.use('/health', healthRoutes);
 
-// Dual REST API routing (/api and /api/v1)
-app.use('/api', apiRouter);
+// Canonical versioned API and backwards-compatible legacy prefix.
 app.use('/api/v1', apiRouter);
+app.use('/api', markDeprecatedRoute((requestPath) => `/api/v1${requestPath}`), apiRouter);
 
 // 404 Handler for undefined routes
 app.use((_req, res) => {

@@ -3,17 +3,28 @@
   "version": "1.0.0",
   "private": true,
   "description": "Momentum (Himma) Learning Insight App Monorepo Root",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "packages/*"
+  ],
   "scripts": {
-    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend",
-    "dev:backend": "npm run dev --prefix backend",
-    "dev:frontend": "npm run dev --prefix frontend",
-    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"cyan,magenta\" \"npm:dev:backend\" \"npm:dev:frontend\"",
-    "build:backend": "npm run build --prefix backend",
-    "build:frontend": "npm run build --prefix frontend",
-    "build": "npm run build:backend && npm run build:frontend",
-    "db:generate": "npm run db:generate --prefix backend",
-    "db:push": "npm run db:deploy --prefix backend",
-    "db:studio": "npm run db:studio --prefix backend"
+    "install:all": "npm install",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "verify": "npm run test && npm run typecheck && npm run build",
+    "dev:backend:app": "npm run dev --workspace backend",
+    "dev:frontend:app": "npm run dev --workspace frontend",
+    "dev:backend": "npm run build:contracts && npm run dev:backend:app",
+    "dev:frontend": "npm run build:contracts && npm run dev:frontend:app",
+    "dev": "npm run build:contracts && concurrently -n \"BACKEND,FRONTEND\" -c \"cyan,magenta\" \"npm:dev:backend:app\" \"npm:dev:frontend:app\"",
+    "build:contracts": "npm run build --workspace @himma/contracts",
+    "build:backend": "npm run build --workspace backend",
+    "build:frontend": "npm run build --workspace frontend",
+    "build": "npm run build:contracts && npm run build:backend && npm run build:frontend",
+    "db:generate": "npm run db:generate --workspace backend",
+    "db:deploy": "npm run db:deploy --workspace backend",
+    "db:studio": "npm run db:studio --workspace backend"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

@@ -1,25 +1,11 @@
-import { supabase } from "@/lib/supabaseClient";
+import { authClient } from "@/lib/authClient";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   
-  let token: string | null = null;
-
-  if (typeof window !== "undefined") {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        token = session.access_token;
-        localStorage.setItem("momentum_token", token);
-      } else {
-        token = localStorage.getItem("momentum_token");
-      }
-    } catch {
-      token = localStorage.getItem("momentum_token");
-    }
-  }
+  const token = typeof window !== "undefined" ? authClient.getToken() : null;
 
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
 
@@ -37,8 +23,7 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
 
     if (response.status === 401) {
       if (typeof window !== "undefined") {
-        localStorage.removeItem("momentum_token");
-        await supabase.auth.signOut().catch(() => {});
+        authClient.clearSession();
         if (!window.location.pathname.startsWith("/login") && !window.location.pathname.startsWith("/auth")) {
           window.location.href = "/login";
         }
@@ -52,12 +37,12 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
       throw new Error(errorBody.message || `API Request failed with status ${response.status}`);
     }
 
+    if (response.status === 204) return undefined as T;
     return response.json();
-  } catch (error: any) {
-    if (error.name === "TypeError" && error.message?.includes("fetch")) {
+  } catch (error: unknown) {
+    if (error instanceof TypeError && error.message.includes("fetch")) {
       throw new Error("Unable to connect to the backend server. Please check your connection.");
     }
     throw error;
   }
 }
-

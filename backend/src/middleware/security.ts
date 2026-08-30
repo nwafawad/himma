@@ -7,60 +7,45 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import { env } from '../config/env.js';
+import { prisma } from '../config/prisma.js';
 
 /**
  * Interface representing a client's sliding window rate limit entry.
  */
-interface RateLimitEntry {
-  /** Number of requests made in the current window */
-  count: number;
-  /** Epoch timestamp (in ms) when the current window resets */
-  resetTime: number;
-}
-
 /**
  * Lightweight, zero-dependency in-memory sliding window rate limiter factory.
  *
  * @param options - Configuration options specifying `windowMs` duration, `max` requests limit, and optional error message.
  * @returns Express middleware function enforcing rate limiting rules.
  */
-export const createRateLimiter = (options: { windowMs: number; max: number; message?: string }) => {
-  const store: Map<string, RateLimitEntry> = new Map();
-  const { windowMs, max, message = 'Too many requests, please try again later.' } = options;
+export const createRateLimiter = (options: { scope: string; windowMs: number; max: number; message?: string }) => {
+  const { scope, windowMs, max, message = 'Too many requests, please try again later.' } = options;
 
-  // Cleanup expired entries periodically
-  const cleanupTimer = setInterval(() => {
-    const now = Date.now();
-    for (const [key, entry] of store.entries()) {
-      if (entry.resetTime <= now) {
-        store.delete(key);
-      }
-    }
-  }, Math.max(windowMs, 60000));
-  if (cleanupTimer.unref) cleanupTimer.unref();
-
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     const key = req.user?.id || req.ip || 'anonymous';
     const now = Date.now();
-    const entry = store.get(key);
-
-    if (!entry || entry.resetTime <= now) {
-      store.set(key, { count: 1, resetTime: now + windowMs });
+    const windowStart = new Date(Math.floor(now / windowMs) * windowMs);
+    const expiresAt = new Date(windowStart.getTime() + windowMs);
+    try {
+      const rows = await prisma.$queryRaw<Array<{ count: number }>>`
+        INSERT INTO private.api_rate_limits (scope, key, window_start, count, expires_at)
+        VALUES (${scope}, ${key}, ${windowStart}, 1, ${expiresAt})
+        ON CONFLICT (scope, key, window_start)
+        DO UPDATE SET count = private.api_rate_limits.count + 1
+        RETURNING count
+      `;
+      if (Math.random() < 0.01) {
+        void prisma.$executeRaw`DELETE FROM private.api_rate_limits WHERE expires_at < now()`;
+      }
+      if ((rows[0]?.count ?? 1) > max) {
+        const retryAfterSeconds = Math.ceil((expiresAt.getTime() - now) / 1000);
+        res.setHeader('Retry-After', retryAfterSeconds);
+        return res.status(429).json({ error: 'Too Many Requests', message });
+      }
       return next();
+    } catch (error) {
+      return next(error);
     }
-
-    entry.count += 1;
-
-    if (entry.count > max) {
-      const retryAfterSeconds = Math.ceil((entry.resetTime - now) / 1000);
-      res.setHeader('Retry-After', retryAfterSeconds);
-      return res.status(429).json({
-        error: 'Too Many Requests',
-        message,
-      });
-    }
-
-    next();
   };
 };
 
@@ -105,4 +90,3 @@ export const applySecurityMiddleware = (app: Express): void => {
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 };
-

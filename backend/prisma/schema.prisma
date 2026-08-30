@@ -1,10 +1,9 @@
 // Prisma schema for Momentum / Himma backend
-// Supports Supabase PostgreSQL with RLS and custom triggers
+// Configured for local and production PostgreSQL
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -46,9 +45,12 @@ enum ImportCandidateStatus {
 }
 
 model User {
-  id        String   @id @db.Uuid
-  email     String   @db.Text
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique @db.Text
+  passwordHash String?  @map("password_hash") @db.Text
+  name         String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   profile          SkillsGoalsProfile?
   activityEntries  ActivityEntry[]

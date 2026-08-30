@@ -6,7 +6,7 @@
 ![Express](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![Prisma](https://img.shields.io/badge/Prisma_ORM-2D3748?style=for-the-badge&logo=prisma&logoColor=white)
-![Supabase](https://img.shields.io/badge/Supabase_PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white)
 ![Gemini AI](https://img.shields.io/badge/Google_Gemini_AI-8E75C2?style=for-the-badge&logo=google&logoColor=white)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
 ![PWA](https://img.shields.io/badge/PWA_Ready-5A0FC8?style=for-the-badge&logo=pwa&logoColor=white)
@@ -48,7 +48,7 @@ In modern self-directed learning, knowledge workers, researchers, and engineers 
 - **Browser History Import**: Upload JSON export files (up to 5MB) with automatic noise filtering and domain normalization.
 - **URL Staging & Metadata Scraping**: Paste URL batches; the backend infers titles, resource types (`article`, `video`, `course`, `repository`), and tags.
 - **Staging Candidate Workflow**: Review candidate items in a staging queue with `pending`, `approved`, or `rejected` states.
-- **Chrome Extension API**: Dedicated endpoints (`/api/extension/*`) for frictionless background domain tracking.
+- **Chrome Extension API**: Dedicated endpoints (`/api/v1/extension/*`) for frictionless background domain tracking.
 
 ### 📝 4. Notes & Reflection Links
 - Rich reflection notes linked directly to specific learning activities or saved as standalone thoughts.
@@ -60,31 +60,38 @@ In modern self-directed learning, knowledge workers, researchers, and engineers 
 - Installable on iOS, Android, macOS, and Windows with Web Push notification hooks.
 
 ### 🛡️ 6. Privacy, Security & Data Ownership
-- **Complete Data Export**: One-click download of the user's entire dataset as a structured JSON bundle (`/api/user/export`).
-- **Right-to-Be-Forgotten**: Complete account deletion cascading across PostgreSQL tables and Supabase Auth (`DELETE /api/user/account`).
-- **Security-First Backend**: Enforces `helmet`, parameterized queries via Prisma, strict Zod validation schemas, and rate limiting.
+- **Complete Data Export**: One-click download of the user's entire dataset as a structured JSON bundle (`/api/v1/user/export`).
+- **Right-to-Be-Forgotten**: Complete account deletion cascading across database records (`DELETE /api/v1/user/account`).
+- **Security-First Backend**: Enforces `helmet`, parameterized queries via Prisma, strict Zod validation schemas, bcrypt password hashing, and rate limiting.
 
 ---
 
 ## 🏛️ Architecture & Tech Stack
 
+See [docs/architecture.md](docs/architecture.md) for dependency rules and the
+feature-module conventions.
+
 ```
 himma/
+├── docker-compose.yml    # Local PostgreSQL database container
 ├── frontend/             # Next.js 14 App Router client (PWA)
-│   ├── app/              # Routes (dashboard, timeline, insights, profile, settings, etc.)
-│   ├── components/       # Radix UI + Framer Motion components
+│   ├── app/              # Thin route files grouped by public/authenticated shell
+│   ├── features/         # Domain UI, API functions, and view models
+│   ├── components/       # Shared UI and application shells
 │   ├── hooks/            # Custom hooks (offline sync, push notifications, intersection observer)
-│   ├── lib/              # API clients, Supabase browser client, and utilities
+│   ├── lib/              # API clients, local auth client, and utilities
 │   └── public/           # PWA manifests, icons, service worker assets
 ├── backend/              # Node.js + Express + TypeScript API
 │   ├── src/
-│   │   ├── config/       # Environment parsing, Prisma client, Supabase admin
-│   │   ├── controllers/  # REST controllers (activities, notes, insights, import, user)
-│   │   ├── middleware/   # Supabase JWT authentication, rate limiters, validation
-│   │   ├── routes/       # Express route definitions
-│   │   ├── schemas/      # Zod validation schemas
-│   │   └── services/     # Business logic, AI engine, batch scheduler, digest service
+│   │   ├── config/       # Environment parsing, Prisma client, database connection pool
+│   │   ├── modules/      # Domain routes, controllers, services, and local schemas
+│   │   ├── jobs/         # Background schedulers and batch orchestration
+│   │   ├── infrastructure/ # Replaceable storage adapters
+│   │   ├── middleware/   # JWT authentication, rate limiters, validation
+│   │   └── routes/       # Top-level API router composition
+│   ├── uploads/          # Local storage for avatars and media uploads
 │   └── prisma/           # Database schema definition, migrations, and seeds
+├── packages/contracts/   # Shared Zod HTTP schemas and inferred TypeScript types
 └── package.json          # Monorepo root orchestration with concurrently
 ```
 
@@ -97,8 +104,9 @@ himma/
 | **Component Primitives** | Radix UI (`@radix-ui/*`) | Accessible dialogs, popovers, and hover cards |
 | **PWA & Offline** | Serwist (`@serwist/next`) | Service worker caching, background sync, install prompts |
 | **Backend Runtime** | Node.js 20+ & Express.js | High-throughput REST API with TypeScript |
-| **Database & ORM** | Supabase PostgreSQL + Prisma | Strongly typed relational models with automated migrations |
-| **Authentication** | Supabase Auth | JWT-based auth with auto-provisioning middleware |
+| **Database & ORM** | PostgreSQL + Prisma ORM | Strongly typed relational models with automated migrations |
+| **Authentication** | Local JWT + Bcrypt | Self-contained user registration, credential verification, and JWT session handling |
+| **File Storage** | Local Multer Storage | Static local asset serving under `/uploads/avatars` |
 | **AI Insights** | Google Gemini (`@google/genai`) | `gemini-2.0-flash` with prompt optimization and rolling digests |
 | **Validation** | Zod | Type-safe runtime schema validation across all inputs |
 
@@ -108,8 +116,7 @@ himma/
 
 ### Prerequisites
 - **Node.js**: `v20.0.0` or higher
-- **npm** or **pnpm**
-- **Supabase Project**: Active project with PostgreSQL database & Auth enabled
+- **Docker** (optional for local PostgreSQL) or a local PostgreSQL instance
 - **Google Gemini API Key**: API key from Google AI Studio
 
 ---
@@ -120,31 +127,37 @@ himma/
 git clone https://github.com/your-username/himma.git
 cd himma
 
-# Install dependencies across root, backend, and frontend
+# Install every workspace from the root lockfile
 npm run install:all
 ```
 
 ---
 
-### 2. Configure Environment Variables
+### 2. Start Local PostgreSQL Database
+
+Using Docker Compose:
+```bash
+docker compose up -d
+```
+This spins up PostgreSQL 16 on port `5432` with database `momentum_db`.
+
+---
+
+### 3. Configure Environment Variables
 
 #### Backend Configuration (`backend/.env`)
-Create a `.env` file in the `backend/` directory:
-
 ```env
 # Server
 PORT=8000
 NODE_ENV=development
 CORS_ORIGIN=http://localhost:3000
 
-# Database (Supabase PostgreSQL)
-DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres"
-DIRECT_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres"
+# Database (Local PostgreSQL)
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/momentum_db"
 
-# Supabase Auth & Admin
-SUPABASE_URL="https://[YOUR-PROJECT-REF].supabase.co"
-SUPABASE_ANON_KEY="your-supabase-anon-key"
-SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-role-key"
+# JWT Authentication
+JWT_SECRET="momentum-dev-jwt-secret-key-32chars!"
+JWT_EXPIRES_IN="7d"
 
 # AI Insight Engine (Google Gemini)
 GEMINI_API_KEY="your-google-gemini-api-key"
@@ -159,129 +172,94 @@ MAX_TOKENS_PER_RUN=8000
 ```
 
 #### Frontend Configuration (`frontend/.env.local`)
-Create a `.env.local` file in the `frontend/` directory:
-
 ```env
-NEXT_PUBLIC_SUPABASE_URL="https://[YOUR-PROJECT-REF].supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="your-supabase-anon-key"
-NEXT_PUBLIC_API_URL="http://localhost:8000"
+NEXT_PUBLIC_API_URL="http://localhost:8000/api/v1"
 ```
 
 ---
 
-### 3. Database Migration & Prisma Setup
+### 4. Database Migration & Prisma Setup
 
 ```bash
 # Generate Prisma Client
 npm run db:generate
 
-# Push database schema to Supabase PostgreSQL
-npm run db:push
-
-# (Optional) Open Prisma Studio visual database editor
-npm run db:studio
+# Deploy committed migrations to PostgreSQL
+npm run db:deploy
 ```
-
-> **Optional Database Trigger**: To automatically create a profile record when a user registers through Supabase Auth, run the following SQL script in your Supabase SQL Editor:
-> ```sql
-> create or replace function public.handle_new_user()
-> returns trigger as $$
-> begin
->   insert into public.users (id, email)
->   values (new.id, new.email)
->   on conflict (id) do update set email = excluded.email;
->   return new;
-> end;
-> $$ language plpgsql security definer;
-> 
-> create trigger on_auth_user_created
->   after insert on auth.users
->   for each row execute procedure public.handle_new_user();
-> ```
 
 ---
 
-### 4. Run the Development Server
+### 5. Run the Monorepo
 
-Start both the backend and frontend concurrently with live reloading:
+Start both frontend and backend concurrently in development mode:
 
 ```bash
 npm run dev
 ```
 
-- **Frontend App**: [http://localhost:3000](http://localhost:3000)
-- **Backend API**: [http://localhost:8000](http://localhost:8000)
-- **API Health Check**: [http://localhost:8000/health](http://localhost:8000/health)
+- **Frontend**: `http://localhost:3000`
+- **Backend API**: `http://localhost:8000/api/v1`
+- **Health Check**: `http://localhost:8000/health`
 
 ---
 
 ## 📡 API Endpoints Reference
 
-All protected endpoints require an `Authorization: Bearer <token>` header obtained from Supabase Auth.
+`/api/v1` is the canonical API prefix. The legacy `/api` prefix remains available
+temporarily and returns an `X-API-Deprecated: true` response header.
 
-| Category | Method | Endpoint | Auth | Description |
-| :--- | :---: | :--- | :---: | :--- |
-| **System** | `GET` | `/health` | Public | Healthcheck for API & database connectivity |
-| **Profile** | `GET` | `/api/profile` | Required | Fetch current user's profile, skills, and target goals |
-| | `PUT` | `/api/profile` | Required | Upsert profile skills, interests, and target path |
-| **Activities** | `GET` | `/api/activities` | Required | List user activities (supports pagination & filtering) |
-| | `POST` | `/api/activities` | Required | Create a new manual learning activity entry |
-| | `GET` | `/api/activities/:id` | Required | Get specific activity by ID |
-| | `PUT` | `/api/activities/:id` | Required | Update activity title, URL, tags, or type |
-| | `DELETE` | `/api/activities/:id` | Required | Delete activity entry |
-| **Notes** | `GET` | `/api/notes` | Required | List user notes (with optional linked activity details) |
-| | `POST` | `/api/notes` | Required | Create a new note / reflection |
-| | `GET` | `/api/notes/:id` | Required | Get specific note by ID |
-| | `PUT` | `/api/notes/:id` | Required | Update note content and tags |
-| | `DELETE` | `/api/notes/:id` | Required | Delete note entry |
-| **Import** | `POST` | `/api/import/upload` | Required | Upload browser history JSON (multipart up to 5MB) |
-| | `POST` | `/api/import/urls` | Required | Paste raw URL array for metadata resolution & staging |
-| | `GET` | `/api/import/candidates` | Required | Fetch pending import candidate items |
-| | `POST` | `/api/import/confirm` | Required | Approve candidates into permanent activities or reject |
-| **Insights** | `POST` | `/api/insights/generate` | Required | Trigger on-demand Gemini AI synthesis pipeline |
-| | `GET` | `/api/insights` | Required | List past insight runs and trajectory histories |
-| | `GET` | `/api/insights/:id` | Required | Retrieve full details of a specific insight run |
-| | `POST` | `/api/insights/feedback` | Required | Submit user feedback on AI insights |
-| **Extension** | `GET` | `/api/extension/allowlist` | Required | Fetch domain allowlist for browser extension |
-| | `POST` | `/api/extension/track-domain` | Required | Track domain activity from Chrome extension |
-| **Account** | `GET` | `/api/user/export` | Required | Download full GDPR JSON export bundle |
-| | `DELETE` | `/api/user/account` | Required | Permanently purge account & all associated data |
+All protected endpoints require an `Authorization: Bearer <token>` header obtained from `/api/v1/auth/login` or `/api/v1/auth/signup`.
+
+### Authentication
+- `POST /api/v1/auth/signup` — Create a new user account with hashed password
+- `POST /api/v1/auth/login` — Authenticate credentials and receive JWT access token
+- `GET /api/v1/auth/me` — Retrieve current authenticated user & profile
+- `POST /api/v1/auth/logout` — Terminate session
+
+### Activities & Staging
+- `GET /api/v1/activities` — Paginated activity journal
+- `POST /api/v1/activities` — Log a new learning entry
+- `POST /api/v1/import/urls` — Batch URL ingestion & metadata extraction
+- `POST /api/v1/import/upload` — Upload browser history JSON
+
+### File Uploads
+- `POST /api/v1/upload/avatar` — Upload profile avatar image (stores in `backend/uploads/avatars/`)
+
+### AI Insights
+- `POST /api/v1/insights/generate` — Trigger on-demand Gemini trajectory synthesis
+- `GET /api/v1/insights?limit=1` — Fetch the latest generated insight run
+
+### User Data & GDPR
+- `GET /api/v1/user/export` — Download complete GDPR data bundle (JSON)
+- `DELETE /api/v1/user/account` — Permanently delete user account and all data
 
 ---
 
-## 💻 Available Scripts
+## 📦 Available Scripts
 
-### Root Workspace
+From the repository root:
+
 | Command | Description |
 | :--- | :--- |
-| `npm run install:all` | Installs dependencies across root, `backend/`, and `frontend/` |
-| `npm run dev` | Runs backend (`localhost:8000`) and frontend (`localhost:3000`) concurrently |
-| `npm run dev:backend` | Runs only the Express backend development server with `tsx` |
-| `npm run dev:frontend` | Runs only the Next.js development server |
-| `npm run build` | Builds both backend (TypeScript compilation) and frontend (Next.js production build) |
-| `npm run db:generate` | Generates the Prisma Client types |
-| `npm run db:push` | Deploys schema changes directly to Supabase PostgreSQL |
-| `npm run db:studio` | Launches Prisma Studio GUI for database inspection |
+| `npm ci` | Reproducibly installs all workspaces from the root lockfile |
+| `npm run dev` | Runs backend and frontend concurrently |
+| `npm test` | Runs the backend test suite |
+| `npm run typecheck` | Type-checks every workspace |
+| `npm run build` | Builds both backend (tsc) and frontend (Next.js) |
+| `npm run verify` | Runs tests, typechecks, and production builds |
+| `npm run db:generate` | Generates Prisma client bindings |
+| `npm run db:deploy` | Applies committed Prisma migrations to PostgreSQL |
+| `npm run db:studio` | Opens Prisma Studio GUI on `localhost:5555` |
 
----
+## Container Build
 
-## 🚢 Deployment
+Build the backend image from the repository root so Docker can access the root
+workspace lockfile and the Prisma schema:
 
-### 1. Frontend (Vercel)
-1. Import the repository into [Vercel](https://vercel.com).
-2. Set the **Root Directory** to `frontend`.
-3. Configure environment variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_URL`).
-4. Deploy!
+```bash
+docker build -f backend/Dockerfile -t momentum-backend .
+```
 
-### 2. Backend (Railway / Render / Fly.io)
-1. Create a new service pointing to the `backend` folder.
-2. Build Command: `npm run build`
-3. Start Command: `npm start`
-4. Supply all required production environment variables (including `DATABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`).
-5. Configure health check path to `/health`.
-
----
-
-## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
+Railway deployments must also use the repository root (`/`) as their Root
+Directory because the backend workspace depends on files at that level.

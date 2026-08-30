@@ -23,7 +23,7 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "any",
       },
       {
-        src: "/icon-512.png",
+        src: "/maskable-icon-512x512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
@@ -39,7 +39,7 @@ export default function manifest(): MetadataRoute.Manifest {
         name: "Log Study Activity",
         short_name: "Log Session",
         description: "Quick capture a new learning reflection or study session",
-        url: "/?action=log",
+        url: "/dashboard?action=log",
         icons: [{ src: "/icon-192.png", sizes: "192x192" }],
       },
       {

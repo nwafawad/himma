@@ -5,40 +5,33 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as Popover from "@radix-ui/react-popover";
 import { User, Settings, LogOut, ChevronDown } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
-import { fetchApi } from "@/lib/api";
+import { authClient, AuthUser } from "@/lib/authClient";
+import { getProfile } from "@/features/profile/api";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const BACKEND_BASE_URL = API_BASE_URL.replace(/\/api(?:\/v1)?\/?$/, "");
 
 export default function UserMenu() {
   const router = useRouter();
-  const [userName, setUserName] = useState<string>("");
-  const [userEmail, setUserEmail] = useState<string>("");
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function checkUserSession() {
+    async function initUserSession() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setUserEmail(session.user.email || "");
-          setUserName(
-            session.user.user_metadata?.full_name ||
-            session.user.email?.split("@")[0] ||
-            "Scholar"
-          );
+        const currentUser = authClient.getUser();
+        setUser(currentUser);
 
-          // Fetch database profile avatar first to ensure custom uploads take priority
-          const profileRes = await fetchApi<{ data?: { avatarUrl?: string } }>("/profile").catch(() => null);
+        if (currentUser) {
+          // Fetch database profile avatar
+          const profileRes = await getProfile().catch(() => null);
           const dbAvatar = profileRes?.data?.avatarUrl;
-          const oauthAvatar = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture;
-
-          setUserAvatar(dbAvatar || oauthAvatar || null);
-        } else {
-          // Check local token fallback if mock authentication is present
-          const localToken = typeof window !== "undefined" ? localStorage.getItem("momentum_token") : null;
-          if (localToken) {
-            setUserEmail("scholar@momentum.app");
-            setUserName("Scholar");
+          if (dbAvatar) {
+            const resolvedAvatar = dbAvatar.startsWith("/uploads")
+              ? `${BACKEND_BASE_URL}${dbAvatar}`
+              : dbAvatar;
+            setUserAvatar(resolvedAvatar);
           }
         }
       } catch (err) {
@@ -48,52 +41,34 @@ export default function UserMenu() {
       }
     }
 
-    checkUserSession();
+    initUserSession();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session?.user) {
-          if (session.access_token) {
-            localStorage.setItem("momentum_token", session.access_token);
-          }
-          setUserEmail(session.user.email || "");
-          setUserName(
-            session.user.user_metadata?.full_name ||
-            session.user.email?.split("@")[0] ||
-            "Scholar"
-          );
-          setUserAvatar(session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null);
-        } else if (!localStorage.getItem("momentum_token")) {
-          setUserEmail("");
-          setUserName("");
-          setUserAvatar(null);
-        }
+    const listener = authClient.onAuthStateChange((updatedUser) => {
+      setUser(updatedUser);
+      if (!updatedUser) {
+        setUserAvatar(null);
       }
-    );
+    });
 
     return () => {
-      authListener.subscription.unsubscribe();
+      listener.unsubscribe();
     };
   }, []);
 
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut();
+      await authClient.signOut();
     } catch (err) {
       console.warn("Sign out warning:", err);
     } finally {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("momentum_token");
-      }
-      setUserEmail("");
-      setUserName("");
+      setUser(null);
       setUserAvatar(null);
       router.push("/login");
     }
   };
 
   // If no user is logged in, show the Sign In button
-  if (!loading && !userEmail && typeof window !== "undefined" && !localStorage.getItem("momentum_token")) {
+  if (!loading && !user) {
     return (
       <Link
         href="/login"
@@ -104,7 +79,10 @@ export default function UserMenu() {
     );
   }
 
-  const initials = (userName || "User")
+  const userName = user?.name || user?.email?.split("@")[0] || "Scholar";
+  const userEmail = user?.email || "";
+
+  const initials = userName
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -142,7 +120,7 @@ export default function UserMenu() {
         >
           {/* User Email & Name Summary Header */}
           <div className="px-3 py-2.5 border-b border-border-light mb-1">
-            <p className="text-xs font-semibold text-charcoal truncate">{userName || "Scholar"}</p>
+            <p className="text-xs font-semibold text-charcoal truncate">{userName}</p>
             <p className="text-[11px] text-charcoal-muted truncate font-mono">{userEmail || "user@momentum.app"}</p>
           </div>
 

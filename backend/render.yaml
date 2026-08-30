@@ -1,11 +1,11 @@
 services:
   - type: web
     name: momentum-backend
-    env: node
+    runtime: node
     region: frankfurt
     plan: starter
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: npm ci && npm run build:backend
+    startCommand: npm run start --workspace backend
     preDeployCommand: npm run db:deploy
     healthCheckPath: /health
     envVars:
@@ -21,12 +21,10 @@ services:
         sync: false
       - key: DIRECT_URL
         sync: false
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_ANON_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL

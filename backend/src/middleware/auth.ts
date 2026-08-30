@@ -1,24 +1,23 @@
 /**
  * @file auth.ts
- * @description Authentication middleware and provider abstractions supporting Supabase Auth and token verification.
+ * @description Authentication middleware and provider abstractions supporting local JWT token verification.
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { supabase } from '../config/supabase.js';
-import { prisma } from '../config/prisma.js';
+import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 
 /**
- * Decoupled User Interface representing authenticated identity across providers (Supabase Auth / Clerk).
+ * Decoupled User Interface representing authenticated identity.
  */
 export interface AuthUser {
-  /** Unique user ID from auth provider */
+  /** Unique user ID */
   id: string;
   /** User email address */
   email?: string;
   /** Authenticated role (defaults to 'authenticated') */
   role?: string;
-  /** Additional custom metadata from auth provider */
+  /** Additional custom metadata */
   metadata?: Record<string, any>;
 }
 
@@ -44,60 +43,37 @@ export interface AuthProvider {
   verifyToken(token: string): Promise<AuthUser | null>;
 }
 
-// In-memory set to cache auto-provisioned user IDs per process lifetime
-const provisionedUserIds = new Set<string>();
-
 /**
- * Clears the in-memory user auto-provisioning cache.
- * Useful for unit and integration testing reset steps.
+ * Local JWT Auth Provider implementation using jsonwebtoken.
+ * Verifies JWT access tokens signed with the server's JWT_SECRET.
  */
-export const clearProvisionedUserCache = () => {
-  provisionedUserIds.clear();
-};
-
-/**
- * Supabase Auth Provider implementation using @supabase/supabase-js.
- * Verifies JWT access tokens with Supabase Auth (`supabase.auth.getUser`).
- */
-export class SupabaseAuthProvider implements AuthProvider {
-  /**
-   * Verifies a Supabase JWT access token. Includes development mock token fallbacks when NODE_ENV !== 'production'.
-   *
-   * @param token - JWT access token string.
-   * @returns Verified AuthUser or null if verification fails.
-   */
+export class LocalJwtAuthProvider implements AuthProvider {
   async verifyToken(token: string): Promise<AuthUser | null> {
-    // Development mock token fallback allowed ONLY in non-production environments
-    if (env.NODE_ENV !== 'production' && (token === 'mock-supabase-token' || token === 'valid-scaffold-token')) {
-      return {
-        id: '00000000-0000-0000-0000-000000000001',
-        email: 'dev.user@momentum.app',
-        role: 'authenticated',
-        metadata: { dev: true },
-      };
-    }
-
     try {
-      const { data: { user }, error } = await supabase.auth.getUser(token);
+      const decoded = jwt.verify(token, env.JWT_SECRET) as {
+        id: string;
+        email?: string;
+        role?: string;
+        [key: string]: any;
+      };
 
-      if (error || !user) {
+      if (!decoded || !decoded.id) {
         return null;
       }
 
       return {
-        id: user.id,
-        email: user.email,
-        role: user.role || 'authenticated',
-        metadata: user.user_metadata,
+        id: decoded.id,
+        email: decoded.email,
+        role: decoded.role || 'authenticated',
+        metadata: decoded,
       };
     } catch (err) {
-      console.error('Error verifying Supabase JWT token:', err);
       return null;
     }
   }
 }
 
-let currentAuthProvider: AuthProvider = new SupabaseAuthProvider();
+let currentAuthProvider: AuthProvider = new LocalJwtAuthProvider();
 
 /**
  * Configures the active Auth Provider strategy.
@@ -111,7 +87,7 @@ export const setAuthProvider = (provider: AuthProvider) => {
 /**
  * Authentication middleware (`requireAuth`).
  * Extracts Bearer token from the `Authorization` header, delegates verification to the active AuthProvider,
- * auto-provisions user in `public.users` database table, and attaches standard `req.user` payload.
+ * and attaches standard `req.user` payload.
  *
  * @param req - Express Request object.
  * @param res - Express Response object.
@@ -139,20 +115,6 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
       });
     }
 
-    // Auto-provision public.users record only if not already cached in current process
-    if (user.id && user.email && !provisionedUserIds.has(user.id)) {
-      try {
-        await prisma.user.upsert({
-          where: { id: user.id },
-          create: { id: user.id, email: user.email },
-          update: { email: user.email },
-        });
-        provisionedUserIds.add(user.id);
-      } catch (err: any) {
-        console.warn(`User auto-provisioning warning for ${user.id}:`, err.message);
-      }
-    }
-
     req.user = user;
     next();
   } catch (error) {
@@ -167,4 +129,3 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
  * Alias of `authenticateUser` for Express middleware naming consistency.
  */
 export const requireAuth = authenticateUser;
-

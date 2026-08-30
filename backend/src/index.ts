@@ -4,7 +4,7 @@ dns.setDefaultResultOrder('ipv4first');
 import app from './app.js';
 import { env } from './config/env.js';
 import { closeDbConnections } from './db/index.js';
-import { initScheduler } from './services/scheduler.service.js';
+import { initScheduler } from './jobs/insights.scheduler.js';
 
 const server = app.listen(env.PORT, () => {
   console.log(`🚀 Momentum Backend Service running on port ${env.PORT} [${env.NODE_ENV}]`);
