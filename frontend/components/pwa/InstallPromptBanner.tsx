@@ -98,7 +98,7 @@ export default function InstallPromptBanner() {
           {!isIOS && deferredPrompt && (
             <button
               onClick={handleInstallClick}
-              className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 shadow-sm"
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-medium text-charcoal shadow-sm transition-all hover:bg-card-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
             >
               <Download className="w-3.5 h-3.5" />
               Install

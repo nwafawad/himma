@@ -95,11 +95,11 @@ export default function ActivityFeed() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="font-serif italic text-2xl text-charcoal">
           Logged Learning Activity
         </h3>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 self-end sm:self-auto">
           <button
             onClick={() => loadActivities(true)}
             disabled={refreshing || loading}
@@ -193,7 +193,7 @@ export default function ActivityFeed() {
               type="button"
               onClick={loadMoreActivities}
               disabled={loadingMore}
-              className="inline-flex min-h-11 items-center gap-2 px-5 py-2.5 rounded-full bg-card hover:bg-card-muted border border-border-light text-charcoal text-xs font-medium transition-all shadow-sm hover:shadow active:scale-95 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal"
+              className="inline-flex min-h-11 items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-card hover:bg-card-muted border border-border-light text-charcoal text-xs font-medium transition-all shadow-sm hover:shadow active:scale-95 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-offset-2"
             >
               {loadingMore ? (
                 <>

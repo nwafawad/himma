@@ -166,7 +166,7 @@ export default function AISynthesisCard() {
             type="button"
             onClick={handleGenerateSynthesis}
             disabled={generating || loading}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 text-xs font-medium border border-indigo-500/40 transition-all active:scale-95 disabled:opacity-50"
+            className="inline-flex min-h-10 items-center justify-center gap-1.5 px-4 py-2 rounded-full border border-white/20 bg-white/10 text-white text-xs font-medium transition-all hover:bg-white/20 active:scale-95 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#181820]"
           >
             {generating ? (
               <>
@@ -202,7 +202,7 @@ export default function AISynthesisCard() {
           <button
             onClick={handleGenerateSynthesis}
             disabled={generating}
-            className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-100 rounded-lg font-medium shrink-0"
+            className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-medium text-white transition-all hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
             Try Synthesis
           </button>
@@ -221,7 +221,7 @@ export default function AISynthesisCard() {
           <button
             onClick={handleGenerateSynthesis}
             disabled={generating}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-sm transition-all"
+            className="inline-flex min-h-11 items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-white text-charcoal text-xs font-medium shadow-sm transition-all hover:bg-card-muted active:scale-95 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#181820]"
           >
             {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             <span>Synthesize Learning Insights</span>

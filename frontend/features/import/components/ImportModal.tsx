@@ -25,6 +25,8 @@ import {
 import { getErrorMessage } from "@/lib/errors";
 import ImportGuide from "./ImportGuide";
 
+const MAX_IMPORT_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+
 export default function ImportModal() {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<"ingest" | "review" | "success">("ingest");
@@ -72,10 +74,18 @@ export default function ImportModal() {
 
   // Handle File Selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-      setErrorMessage("");
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_IMPORT_FILE_SIZE_BYTES) {
+      setSelectedFile(null);
+      setErrorMessage("The selected JSON file exceeds the 20MB maximum size.");
+      e.target.value = "";
+      return;
     }
+
+    setSelectedFile(file);
+    setErrorMessage("");
   };
 
   // Handle Ingest Submission (Upload File or Submit URLs)
@@ -251,7 +261,7 @@ export default function ImportModal() {
                 <button
                   type="button"
                   onClick={() => setTab("file")}
-                  className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${
+                  className={`flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg py-2 text-xs font-medium transition-all ${
                     tab === "file"
                       ? "bg-white text-charcoal shadow-sm"
                       : "text-charcoal-muted hover:text-charcoal"
@@ -263,7 +273,7 @@ export default function ImportModal() {
                 <button
                   type="button"
                   onClick={() => setTab("urls")}
-                  className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${
+                  className={`flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg py-2 text-xs font-medium transition-all ${
                     tab === "urls"
                       ? "bg-white text-charcoal shadow-sm"
                       : "text-charcoal-muted hover:text-charcoal"
@@ -328,7 +338,7 @@ export default function ImportModal() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-charcoal hover:bg-black text-white text-xs font-medium transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-charcoal px-6 py-2.5 text-xs font-medium text-white shadow-sm transition-all hover:bg-black active:scale-95 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-offset-2"
                   >
                     {loading ? (
                       <>
@@ -455,11 +465,11 @@ export default function ImportModal() {
               </div>
 
               {/* Footer Actions */}
-              <div className="flex items-center justify-between pt-3 border-t border-border-light shrink-0">
+              <div className="flex flex-col-reverse gap-3 border-t border-border-light pt-3 sm:flex-row sm:items-center sm:justify-between shrink-0">
                 <button
                   type="button"
                   onClick={() => setStep("ingest")}
-                  className="text-xs text-charcoal-muted hover:text-charcoal font-medium"
+                  className="inline-flex min-h-10 items-center self-start rounded-full px-3 py-2 text-xs font-medium text-charcoal-muted transition-colors hover:bg-card-muted hover:text-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal"
                 >
                   ← Back to Ingest
                 </button>
@@ -468,7 +478,7 @@ export default function ImportModal() {
                   type="button"
                   onClick={handleConfirmImport}
                   disabled={selectedIds.size === 0 || confirming}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-charcoal hover:bg-black text-white text-xs font-medium transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 self-end rounded-full bg-charcoal px-6 py-2.5 text-xs font-medium text-white shadow-sm transition-all hover:bg-black active:scale-95 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-offset-2"
                 >
                   {confirming ? (
                     <>
@@ -503,7 +513,7 @@ export default function ImportModal() {
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="px-6 py-2.5 rounded-full bg-charcoal hover:bg-black text-white text-xs font-medium transition-all shadow-sm active:scale-95"
+                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-charcoal px-6 py-2.5 text-xs font-medium text-white shadow-sm transition-all hover:bg-black active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-offset-2"
                 >
                   Done
                 </button>

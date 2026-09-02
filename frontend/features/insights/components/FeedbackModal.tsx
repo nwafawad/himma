@@ -145,7 +145,7 @@ export default function FeedbackModal({
                 <button
                   type="button"
                   onClick={handleAddSkill}
-                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-medium transition-colors"
+                  className="inline-flex min-h-10 items-center justify-center rounded-full bg-charcoal px-4 py-2 text-xs font-medium text-white transition-all hover:bg-black active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-offset-2"
                 >
                   Add
                 </button>
@@ -180,14 +180,14 @@ export default function FeedbackModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2.5 rounded-xl border border-border-light text-xs font-semibold text-charcoal hover:bg-card-muted transition-colors"
+                className="inline-flex min-h-10 items-center justify-center rounded-full border border-border-light bg-white px-4 py-2 text-xs font-medium text-charcoal transition-all hover:bg-card-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-offset-2"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-colors disabled:opacity-50"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-charcoal px-5 py-2 text-xs font-medium text-white shadow-sm transition-all hover:bg-black active:scale-95 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-offset-2"
               >
                 {submitting ? (
                   <>

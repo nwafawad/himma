@@ -42,10 +42,11 @@ export const errorHandler = (
   // Multer File Upload Errors
   if (err instanceof multer.MulterError || err.name === 'MulterError') {
     const statusCode = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    const isHistoryImport = req.originalUrl.includes('/import/upload');
     return res.status(statusCode).json({
       error: statusCode === 413 ? 'Payload Too Large' : 'Bad Request',
       message: err.code === 'LIMIT_FILE_SIZE'
-        ? 'Uploaded file exceeds the maximum allowed size limit (5MB).'
+        ? `Uploaded file exceeds the maximum allowed size limit (${isHistoryImport ? '20MB' : '5MB'}).`
         : `File upload error: ${err.message}`,
       code: err.code,
     });
