@@ -183,7 +183,7 @@ export default function InsightsPage() {
         <button
           onClick={handleGenerateInsight}
           disabled={generating}
-          className="inline-flex min-h-11 items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-amber-400 hover:bg-amber-500 active:scale-95 text-amber-950 font-semibold text-xs shadow-sm border border-amber-500/20 transition-all disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-2"
+          className="inline-flex min-h-11 items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-charcoal hover:bg-black active:scale-95 text-white font-medium text-xs shadow-sm transition-all disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-offset-2"
         >
           {generating ? (
             <>
@@ -490,7 +490,7 @@ export default function InsightsPage() {
 
                       <button
                         onClick={() => handleOpenCorrectionModal(run)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-border-light hover:bg-card-muted text-charcoal hover:border-indigo-500/40 transition-all"
+                        className="inline-flex min-h-10 items-center justify-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium border border-border-light bg-white text-charcoal transition-all hover:bg-card-muted hover:border-charcoal/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-offset-2"
                       >
                         <Sliders className="w-3.5 h-3.5 text-indigo-600" />
                         <span>Adjust Goals / Skills</span>

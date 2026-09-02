@@ -55,7 +55,7 @@ Authentication is fully self-contained using secure password hashing and JWT acc
 ## 📥 Activity Import Module (`FR-3.1–3.4`, `NFR-2.4`)
 
 Supports importing external learning history without auto-persisting unverified items:
-1. **Browser History Upload**: `POST /api/v1/import/upload` accepts JSON history export files up to 5MB (validated via `multer` and Zod).
+1. **Browser History Upload**: `POST /api/v1/import/upload` accepts JSON history export files up to 20MB (validated via `multer` and Zod).
 2. **Pasted URLs**: `POST /api/v1/import/urls` accepts raw URL lists and infers item titles and activity types (`article`, `video`, `course`, `repository`).
 3. **Candidate Staging**: Parsed items are saved into the `import_candidates` table with `status: "pending"`.
 4. **User Review & Confirmation**: `POST /api/v1/import/confirm` converts user-approved candidate IDs into permanent `ActivityEntry` records and sets excluded IDs to `status: "rejected"`.

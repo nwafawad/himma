@@ -21,13 +21,13 @@ import * as importController from './import.controller.js';
  * Multer middleware instance configured for history file uploads.
  * 
  * - Memory Storage: Files are held in memory buffer for inline parsing.
- * - Limits: 5MB maximum file size (NFR-2.4).
+ * - Limits: 20MB maximum file size.
  * - File Filter: Validates MIME type and extensions to enforce `.json` or text file imports.
  */
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 5 * 1024 * 1024,
+    fileSize: 20 * 1024 * 1024,
   },
   fileFilter: (_req, file, cb) => {
     // Validate file type

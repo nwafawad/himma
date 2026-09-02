@@ -143,7 +143,7 @@ export default function TimelinePage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 self-end sm:self-auto">
           <button
             type="button"
             onClick={() => loadTimeline(true)}
@@ -281,7 +281,7 @@ export default function TimelinePage() {
               type="button"
               onClick={loadMoreTimeline}
               disabled={loadingMore}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-card hover:bg-card-muted border border-border-light text-charcoal text-xs font-medium transition-all shadow-sm hover:shadow active:scale-95 disabled:opacity-50"
+              className="inline-flex min-h-11 items-center justify-center gap-2 px-6 py-3 rounded-full bg-card hover:bg-card-muted border border-border-light text-charcoal text-xs font-medium transition-all shadow-sm hover:shadow active:scale-95 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-offset-2"
             >
               {loadingMore ? (
                 <>
