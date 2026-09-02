@@ -8,6 +8,7 @@ import { ActivityType, ActivitySource } from '@prisma/client';
 import type { ImportCandidate } from '@prisma/client';
 import { canonicalizeUrl, normalizeTitle } from '../../utils/url.js';
 import { fetchPublicHtml, UnsafeUrlError } from '../../utils/safeFetch.js';
+import type { CandidateOverride } from '@himma/contracts';
 
 /**
  * Infers an activity type enum based on domain/keyword patterns in a given URL.
@@ -444,7 +445,8 @@ export const getPendingCandidates = async (userId: string) => {
 export const confirmImportCandidates = async (
   userId: string,
   approvedCandidateIds: string[],
-  excludedCandidateIds: string[] = []
+  excludedCandidateIds: string[] = [],
+  overrides: CandidateOverride[] = []
 ) => {
   return prisma.$transaction(async (tx) => {
     // Reject excluded candidates in sub-chunks of 1,000
@@ -470,6 +472,35 @@ export const confirmImportCandidates = async (
 
     if (candidatesToApprove.length === 0) {
       return [];
+    }
+
+    // Apply dirty overrides to approved candidates atomically
+    if (overrides.length > 0) {
+      const overrideMap = new Map(overrides.map((o) => [o.id, o]));
+      for (const c of candidatesToApprove) {
+        const o = overrideMap.get(c.id);
+        if (o) {
+          if (o.title && o.title.trim()) {
+            c.title = o.title.trim();
+          }
+          if (o.type) {
+            c.type = o.type as ActivityType;
+          }
+        }
+      }
+
+      // Also persist the overrides back to ImportCandidate records
+      for (const o of overrides) {
+        const dataToUpdate: Record<string, any> = {};
+        if (o.title && o.title.trim()) dataToUpdate.title = o.title.trim();
+        if (o.type) dataToUpdate.type = o.type;
+        if (Object.keys(dataToUpdate).length > 0) {
+          await tx.importCandidate.updateMany({
+            where: { id: o.id, userId },
+            data: dataToUpdate,
+          });
+        }
+      }
     }
 
     // Batch-create ActivityEntry records in sub-chunks of 1,000 using createMany for maximum performance

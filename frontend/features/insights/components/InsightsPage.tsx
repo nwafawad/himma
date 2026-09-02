@@ -115,16 +115,10 @@ export default function InsightsPage() {
   };
 
   const handleOpenCorrectionModal = (run: Insight) => {
-    const allSkills = [
-      ...(run.skillSummary?.strong || []),
-      ...(run.skillSummary?.emerging || []),
-      ...(run.skillSummary?.developing || []),
-    ];
-
     setFeedbackModal({
       isOpen: true,
       insightId: run.id,
-      initialSkills: Array.from(new Set(allSkills)),
+      initialSkills: [],
       initialTargetPath: "",
     });
   };

@@ -2,13 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/authClient";
-import { User, Target, Download, Check, Loader2, Mail, Calendar, ShieldCheck, Camera } from "lucide-react";
+import {
+  User,
+  Target,
+  Download,
+  Check,
+  Loader2,
+  Mail,
+  Calendar,
+  ShieldCheck,
+  Camera,
+  AlertCircle,
+  Smartphone,
+} from "lucide-react";
 import {
   exportUserData,
   getProfile,
   uploadAvatar as uploadProfileAvatar,
   upsertProfile,
 } from "@/features/profile/api";
+import { getErrorMessage } from "@/lib/errors";
+import { useToast } from "@/components/ui/Toast";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 const BACKEND_BASE_URL = API_BASE_URL.replace(/\/api(?:\/v1)?\/?$/, "");
@@ -29,35 +43,39 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+
+  const toast = useToast();
 
   useEffect(() => {
     async function loadUserDataAndProfile() {
       try {
-        // Fetch user trajectory profile from backend API first
         const response = await getProfile().catch(() => null);
-        
+
         let dbAvatar: string | null = null;
         if (response?.data) {
           if (response.data.avatarUrl) {
             dbAvatar = response.data.avatarUrl;
           }
           setTargetPath(response.data.targetPath || "Staff Systems Architect");
-          setSkillsInput((response.data.currentSkills || ["Go", "Distributed Systems", "Kafka", "Rust"]).join(", "));
-          setInterestsInput((response.data.interests || ["High-throughput microservices", "Consensus algorithms"]).join(", "));
+          setSkillsInput(
+            (response.data.currentSkills || ["Go", "Distributed Systems", "Kafka", "Rust"]).join(", ")
+          );
+          setInterestsInput(
+            (response.data.interests || ["High-throughput microservices", "Consensus algorithms"]).join(", ")
+          );
         } else {
-          // Default fallbacks
           setTargetPath("Staff Systems Architect");
           setSkillsInput("Go, Distributed Systems, Kafka, Rust, PostgreSQL");
           setInterestsInput("High-throughput microservices, Consensus algorithms, Event Sourcing");
         }
 
-        // Load user auth metadata from authClient
         const currentUser = authClient.getUser();
         if (currentUser) {
           setUserEmail(currentUser.email || "user@momentum.app");
           setUserName(currentUser.name || currentUser.email?.split("@")[0] || "Momentum Scholar");
-          
+
           if (dbAvatar) {
             const resolvedAvatar = dbAvatar.startsWith("/uploads")
               ? `${BACKEND_BASE_URL}${dbAvatar}`
@@ -68,7 +86,12 @@ export default function ProfilePage() {
           }
 
           if (currentUser.createdAt) {
-            setCreatedAt(new Date(currentUser.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" }));
+            setCreatedAt(
+              new Date(currentUser.createdAt).toLocaleDateString("en-US", {
+                month: "long",
+                year: "numeric",
+              })
+            );
           }
           setProvider("Local Auth");
         } else if (dbAvatar) {
@@ -97,21 +120,22 @@ export default function ProfilePage() {
       if (!user) throw new Error("You must be signed in to upload an avatar.");
 
       const uploadRes = await uploadProfileAvatar(file);
-
       const relativeUrl = uploadRes.data.url;
       const fullUrl = `${BACKEND_BASE_URL}${relativeUrl}`;
 
       setUserAvatar(fullUrl);
 
-      // Persist avatarUrl to backend database
       await upsertProfile({
         avatarUrl: relativeUrl,
         targetPath,
         currentSkills: skillsInput.split(",").map((s) => s.trim()).filter(Boolean),
         interests: interestsInput.split(",").map((i) => i.trim()).filter(Boolean),
       }).catch(() => null);
+
+      toast.success("Avatar Updated", "Your profile photo has been refreshed.");
     } catch (err) {
       console.warn("Error uploading profile image:", err);
+      toast.error("Avatar Upload Failed", "Unable to save image file.");
     } finally {
       setUploadingAvatar(false);
     }
@@ -122,6 +146,7 @@ export default function ProfilePage() {
     if (saving) return;
     setSaving(true);
     setSavedSuccess(false);
+    setSaveError(null);
 
     const skillsArray = skillsInput.split(",").map((s) => s.trim()).filter(Boolean);
     const interestsArray = interestsInput.split(",").map((i) => i.trim()).filter(Boolean);
@@ -134,11 +159,13 @@ export default function ProfilePage() {
         interests: interestsArray,
       });
       setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 2000);
-    } catch (err) {
-      console.warn("Saved profile locally:", err);
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 2000);
+      toast.success("Profile Saved", "Your learning goals and skills have been updated.");
+      setTimeout(() => setSavedSuccess(false), 2500);
+    } catch (err: unknown) {
+      console.error("Profile save error:", err);
+      const msg = getErrorMessage(err, "Failed to save profile. Please check your connection.");
+      setSaveError(msg);
+      toast.error("Save Failed", msg);
     } finally {
       setSaving(false);
     }
@@ -149,24 +176,32 @@ export default function ProfilePage() {
     setExporting(true);
     try {
       const data = await exportUserData();
-      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
+      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+        JSON.stringify(data, null, 2)
+      )}`;
       const downloadAnchor = document.createElement("a");
       downloadAnchor.setAttribute("href", jsonString);
       downloadAnchor.setAttribute("download", `momentum_profile_export.json`);
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
+      toast.success("Export Complete", "Journal data downloaded as JSON.");
     } catch (err) {
-      console.warn("Exporting local fallback data bundle:", err);
+      console.warn("Export error:", err);
+      toast.error("Export Failed", "Could not download profile data.");
     } finally {
       setExporting(false);
     }
   };
 
+  const handleTriggerInstall = () => {
+    window.dispatchEvent(new CustomEvent("trigger-pwa-install"));
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-charcoal-muted gap-2 text-sm">
-        <Loader2 className="w-5 h-5 animate-spin" />
+      <div className="min-h-[40vh] flex items-center justify-center gap-2 text-charcoal-muted text-sm">
+        <Loader2 className="w-5 h-5 animate-spin text-charcoal" />
         <span>Loading User Profile...</span>
       </div>
     );
@@ -191,6 +226,17 @@ export default function ProfilePage() {
         </p>
       </div>
 
+      {saveError && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2"
+        >
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{saveError}</span>
+        </div>
+      )}
+
       {/* Unified Profile Edit Form */}
       <form onSubmit={handleSaveProfile} className="space-y-8">
         {/* Section 1: Personal Identity & Avatar */}
@@ -201,13 +247,13 @@ export default function ProfilePage() {
               Personal Identity
             </h3>
             <p className="text-xs text-charcoal-muted mt-0.5">
-              Update your avatar picture and display name across your workspace.
+              Review your account details and update your workspace avatar.
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
             <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-5 text-center sm:text-left w-full">
-              {/* Avatar Picture with Camera Upload Overlay */}
+              {/* Avatar with Camera Upload Overlay */}
               <div className="relative group shrink-0">
                 {userAvatar ? (
                   <img
@@ -220,8 +266,7 @@ export default function ProfilePage() {
                     {initials || "ME"}
                   </div>
                 )}
-                
-                {/* Upload Button Overlay */}
+
                 <label
                   htmlFor="avatar-upload-input"
                   className="absolute inset-0 rounded-full bg-charcoal/60 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-[10px] font-medium"
@@ -247,16 +292,25 @@ export default function ProfilePage() {
 
               <div className="space-y-3 flex-1 w-full">
                 <div>
-                  <label className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1">
+                  <label
+                    htmlFor="profile-display-name"
+                    className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1"
+                  >
                     Display Name / Full Name
                   </label>
-                  <input
-                    type="text"
-                    value={userName}
-                    onChange={(e) => setUserName(e.target.value)}
-                    placeholder="Alex Mercer"
-                    className="w-full max-w-md px-3.5 py-2 text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal focus:outline-none focus:border-charcoal transition-colors"
-                  />
+                  <div className="max-w-md space-y-1">
+                    <input
+                      id="profile-display-name"
+                      type="text"
+                      value={userName}
+                      readOnly
+                      aria-readonly="true"
+                      className="w-full px-3.5 py-2 text-sm bg-card-muted/80 border border-border-light rounded-xl text-charcoal cursor-not-allowed select-none focus:outline-none"
+                    />
+                    <p className="text-[11px] text-charcoal-muted">
+                      Display name is set during account registration and cannot be modified directly.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs text-charcoal-muted font-sans">
@@ -288,56 +342,67 @@ export default function ProfilePage() {
               Career Trajectory & Learning Focus
             </h3>
             <p className="text-xs text-charcoal-muted mt-0.5">
-              Your target career trajectory is evaluated by the AI engine against your daily logged activity.
+              Specify your target technical role and current skill domains to anchor AI synthesis.
             </p>
           </div>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1">
-                Target Career Path / Goal Role
+              <label
+                htmlFor="profile-target-path"
+                className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1"
+              >
+                Target Career Path / Role Goal
               </label>
               <input
+                id="profile-target-path"
                 type="text"
                 value={targetPath}
                 onChange={(e) => setTargetPath(e.target.value)}
-                placeholder="e.g. Staff Systems Architect"
-                className="w-full px-3.5 py-2.5 text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal focus:outline-none focus:border-charcoal transition-colors"
+                placeholder="e.g. Senior Backend Architect, AI Systems Engineer..."
+                className="w-full px-3.5 py-2.5 text-sm bg-card-muted/40 border border-border-light rounded-xl text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1">
-                Current Core Skills (Comma Separated)
+              <label
+                htmlFor="profile-skills-input"
+                className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1"
+              >
+                Current Technical Skills (comma-separated)
               </label>
               <input
+                id="profile-skills-input"
                 type="text"
                 value={skillsInput}
                 onChange={(e) => setSkillsInput(e.target.value)}
-                placeholder="Go, Rust, Distributed Systems, Kafka..."
-                className="w-full px-3.5 py-2.5 text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal focus:outline-none focus:border-charcoal transition-colors"
+                placeholder="Go, Distributed Systems, Kafka, Rust, PostgreSQL"
+                className="w-full px-3.5 py-2.5 text-sm bg-card-muted/40 border border-border-light rounded-xl text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal transition-colors font-mono"
               />
             </div>
 
             <div>
-              <label className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1">
-                Learning Focus & Technical Interests
+              <label
+                htmlFor="profile-interests-input"
+                className="block text-xs uppercase tracking-wider font-semibold text-charcoal mb-1"
+              >
+                Topics & Domain Interests (comma-separated)
               </label>
-              <textarea
-                rows={3}
+              <input
+                id="profile-interests-input"
+                type="text"
                 value={interestsInput}
                 onChange={(e) => setInterestsInput(e.target.value)}
-                placeholder="High-throughput microservices, consensus algorithms..."
-                className="w-full px-3.5 py-2.5 text-sm bg-card-muted/50 border border-border-light rounded-xl text-charcoal focus:outline-none focus:border-charcoal transition-colors resize-none"
+                placeholder="High-throughput microservices, Consensus algorithms, Event Sourcing"
+                className="w-full px-3.5 py-2.5 text-sm bg-card-muted/40 border border-border-light rounded-xl text-charcoal focus:outline-none focus:ring-2 focus:ring-charcoal transition-colors font-mono"
               />
             </div>
 
-            {/* Global Update Profile Action Button */}
-            <div className="flex justify-end pt-4 border-t border-border-light">
+            <div className="pt-3 flex justify-end">
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-full bg-charcoal hover:bg-black text-white px-7 py-3 text-xs font-semibold uppercase tracking-wider transition-all shadow-md active:scale-95 disabled:opacity-75 disabled:pointer-events-none"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-charcoal hover:bg-black text-white px-7 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all shadow-md active:scale-95 disabled:opacity-75 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-offset-2"
               >
                 {saving ? (
                   <>
@@ -358,14 +423,14 @@ export default function ProfilePage() {
         </div>
       </form>
 
-      {/* Account Data Export & Privacy Section */}
+      {/* Account Data Export & App Install Section */}
       <div className="bg-card border border-border-light rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
         <div className="border-b border-border-light pb-3">
           <h3 className="font-serif italic text-2xl text-charcoal">
-            Data Control & Export
+            Data Control & PWA Access
           </h3>
           <p className="text-xs text-charcoal-muted mt-0.5">
-            Download your raw activity, trajectory notes, and AI insights history.
+            Download your raw activity history or install Momentum as a standalone application.
           </p>
         </div>
 
@@ -374,10 +439,23 @@ export default function ProfilePage() {
             type="button"
             onClick={handleExportData}
             disabled={exporting}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full border border-border-light bg-white hover:bg-card-muted text-charcoal px-5 py-2.5 text-xs font-medium transition-all shadow-sm disabled:opacity-50 disabled:pointer-events-none"
+            className="w-full sm:w-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border-light bg-white hover:bg-card-muted text-charcoal px-5 py-2.5 text-xs font-medium transition-all shadow-sm disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal"
           >
-            {exporting ? <Loader2 className="w-4 h-4 animate-spin text-charcoal-muted" /> : <Download className="w-4 h-4 text-charcoal-muted" />}
+            {exporting ? (
+              <Loader2 className="w-4 h-4 animate-spin text-charcoal-muted" />
+            ) : (
+              <Download className="w-4 h-4 text-charcoal-muted" />
+            )}
             <span>Export Complete Profile Data (JSON)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleTriggerInstall}
+            className="w-full sm:w-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-card-muted hover:bg-border-light text-charcoal px-5 py-2.5 text-xs font-medium transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal"
+          >
+            <Smartphone className="w-4 h-4 text-charcoal" />
+            <span>Install Standalone App</span>
           </button>
         </div>
       </div>

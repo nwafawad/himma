@@ -3,11 +3,14 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Insight } from "@himma/contracts";
 import CitationHoverCard from "./CitationHoverCard";
-import { Sparkles, RotateCw, Loader2, Target, AlertCircle } from "lucide-react";
+import FeedbackModal from "./FeedbackModal";
+import { Sparkles, RotateCw, Loader2, Target, AlertCircle, Sliders } from "lucide-react";
 import { listActivities } from "@/features/activities/api";
 import { generateInsight, listInsights } from "@/features/insights/api";
 import { listNotes } from "@/features/notes/api";
+import { fetchApi } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { AISynthesisSkeleton } from "@/components/ui/Skeletons";
 
 interface ResolvedCitation {
   id: string;
@@ -25,6 +28,7 @@ export default function AISynthesisCard() {
   const [loading, setLoading] = useState<boolean>(true);
   const [generating, setGenerating] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>("");
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState<boolean>(false);
 
   const formatRelativeTime = (dateStr?: string): string => {
     if (!dateStr) return "Just synthesized";
@@ -42,7 +46,6 @@ export default function AISynthesisCard() {
     setLoading(true);
     setErrorMsg("");
     try {
-      // Fetch latest insight run and recent activities/notes for citation resolution
       const [insightsRes, activitiesRes, notesRes] = await Promise.all([
         listInsights(1).catch(() => null),
         listActivities({ limit: 20 }).catch(() => null),
@@ -56,6 +59,25 @@ export default function AISynthesisCard() {
         const actMap = new Map((activitiesRes?.data || []).map((activity) => [activity.id, activity]));
         const noteMap = new Map((notesRes?.data || []).map((note) => [note.id, note]));
 
+        // Fetch any missing cited IDs directly to guarantee full citation hydration
+        const missingIds = latestRun.citations.filter((id) => !actMap.has(id) && !noteMap.has(id));
+        if (missingIds.length > 0) {
+          const fetchedResults = await Promise.all(
+            missingIds.map(async (id) => {
+              const act = await fetchApi<{ data?: any }>(`/activities/${id}`).catch(() => null);
+              if (act?.data) return { kind: "activity", item: act.data };
+              const note = await fetchApi<{ data?: any }>(`/notes/${id}`).catch(() => null);
+              if (note?.data) return { kind: "note", item: note.data };
+              return null;
+            })
+          );
+
+          fetchedResults.forEach((f) => {
+            if (f?.kind === "activity") actMap.set(f.item.id, f.item);
+            if (f?.kind === "note") noteMap.set(f.item.id, f.item);
+          });
+        }
+
         const resolved: ResolvedCitation[] = [];
         for (const citationId of latestRun.citations) {
           if (actMap.has(citationId)) {
@@ -65,7 +87,10 @@ export default function AISynthesisCard() {
               keyword: act.tags?.[0] || act.type?.toUpperCase() || "Activity",
               title: act.title,
               type: (act.type || "Activity").toUpperCase(),
-              date: new Date(act.consumedAt || act.createdAt || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+              date: new Date(act.consumedAt || act.createdAt || Date.now()).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              }),
               snippet: act.title,
               url: act.url || undefined,
             });
@@ -76,7 +101,10 @@ export default function AISynthesisCard() {
               keyword: note.tags?.[0] || "NOTE",
               title: note.text ? (note.text.length > 50 ? `${note.text.slice(0, 50)}...` : note.text) : "Study Note",
               type: "NOTE",
-              date: new Date(note.createdAt || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+              date: new Date(note.createdAt || Date.now()).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              }),
               snippet: note.text || "",
             });
           }
@@ -123,9 +151,11 @@ export default function AISynthesisCard() {
 
     window.addEventListener("activity-logged", handleRefresh);
     window.addEventListener("insight-generated", handleRefresh);
+    window.addEventListener("profile-updated", handleRefresh);
     return () => {
       window.removeEventListener("activity-logged", handleRefresh);
       window.removeEventListener("insight-generated", handleRefresh);
+      window.removeEventListener("profile-updated", handleRefresh);
     };
   }, [loadLatestInsight]);
 
@@ -147,9 +177,13 @@ export default function AISynthesisCard() {
   const emergingSkills = insight?.skillSummary?.emerging || [];
   const totalSessions = (insight?.inputWindow?.activitiesCount || 0) + (insight?.inputWindow?.notesCount || 0);
 
+  if (loading && !insight) {
+    return <AISynthesisSkeleton />;
+  }
+
   return (
     <div className="w-full bg-[#181820] text-white p-6 sm:p-8 rounded-2xl shadow-xl relative overflow-hidden border border-slate-800">
-      {/* Background Subtle Gradient Glow */}
+      {/* Subtle Background Radial Glow */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header Bar */}
@@ -161,7 +195,18 @@ export default function AISynthesisCard() {
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          {insight && (
+            <button
+              type="button"
+              onClick={() => setFeedbackModalOpen(true)}
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-full border border-indigo-400/30 bg-indigo-500/10 text-indigo-200 text-xs font-medium transition-all hover:bg-indigo-500/20 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>Adjust Focus</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleGenerateSynthesis}
@@ -188,12 +233,7 @@ export default function AISynthesisCard() {
       </div>
 
       {/* Body Content */}
-      {loading ? (
-        <div className="flex items-center justify-center py-10 text-slate-400 text-sm gap-2">
-          <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
-          <span>Loading AI synthesis report...</span>
-        </div>
-      ) : errorMsg ? (
+      {errorMsg ? (
         <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
@@ -216,7 +256,7 @@ export default function AISynthesisCard() {
             No Synthesis Generated Yet
           </h4>
           <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-            Synthesize your imported history logs, notes, and study sessions to generate an AI evaluation of your learning momentum.
+            Synthesize your study sessions, takeaways, and bookmarks into an editorial career momentum report.
           </p>
           <button
             onClick={handleGenerateSynthesis}
@@ -229,12 +269,11 @@ export default function AISynthesisCard() {
         </div>
       ) : (
         <div className="space-y-4 relative z-10">
-          {/* Main Narrative Synthesis */}
           <blockquote className="text-base sm:text-lg font-light text-slate-200 leading-relaxed font-sans">
             "{narrative || "Learning momentum synthesized from your recent activity entries and study logs."}"
           </blockquote>
 
-          {/* Citations & Strong Skills Chips */}
+          {/* Citations & Skills Chips */}
           <div className="flex flex-wrap items-center gap-2 pt-2">
             {citations.map((c) => (
               <CitationHoverCard
@@ -267,7 +306,6 @@ export default function AISynthesisCard() {
             ))}
           </div>
 
-          {/* Footer Metadata */}
           <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
             <span>
               {totalSessions > 0
@@ -277,6 +315,19 @@ export default function AISynthesisCard() {
             <span className="font-mono text-[11px]">{formatRelativeTime(insight.timestamp)}</span>
           </div>
         </div>
+      )}
+
+      {/* Dashboard feedback correction loop modal */}
+      {insight && (
+        <FeedbackModal
+          isOpen={feedbackModalOpen}
+          onClose={() => setFeedbackModalOpen(false)}
+          insightId={insight.id}
+          onSuccess={async () => {
+            await loadLatestInsight();
+            window.dispatchEvent(new CustomEvent("insight-generated"));
+          }}
+        />
       )}
     </div>
   );

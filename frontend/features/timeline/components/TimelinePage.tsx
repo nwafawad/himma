@@ -11,19 +11,24 @@ import {
   type TimelineEntry,
   type TimelineFilter,
 } from "@/features/timeline/model";
+import { authClient } from "@/lib/authClient";
+import { TimelineSkeleton } from "@/components/ui/Skeletons";
 
-// In-memory cache for Timeline entries to render instantly on navigation
-let timelineCache: TimelineEntry[] | null = null;
-let timelineHasMoreCache: boolean = false;
+// User-scoped in-memory cache for Timeline entries
+const userTimelineCaches = new Map<string, { entries: TimelineEntry[]; hasMore: boolean }>();
 
 export default function TimelinePage() {
+  const currentUserId = authClient.getUser()?.id || "anon";
+  const initialCache = userTimelineCaches.get(currentUserId);
+
   const [activeFilter, setActiveFilter] = useState<TimelineFilter>("All");
-  const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>(timelineCache || []);
-  const [loading, setLoading] = useState<boolean>(!timelineCache);
+  const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>(initialCache?.entries || []);
+  const [loading, setLoading] = useState<boolean>(!initialCache);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
-  const [hasMore, setHasMore] = useState<boolean>(timelineHasMoreCache);
+  const [hasMore, setHasMore] = useState<boolean>(initialCache?.hasMore || false);
   const [errorMessage, setErrorMessage] = useState<string>("");
+
   const activityOffsetRef = useRef(0);
   const noteOffsetRef = useRef(0);
   const refreshInFlight = useRef(false);
@@ -36,7 +41,6 @@ export default function TimelinePage() {
     }
     setErrorMessage("");
     try {
-      // Fetch both activities and notes from the backend database with pagination metadata
       const [activitiesRes, notesRes] = await Promise.all([
         listActivities({ limit: 20, offset: 0 }),
         listNotes({ limit: 20, offset: 0 }),
@@ -46,8 +50,10 @@ export default function TimelinePage() {
       const merged = mergeTimelineEntries(activitiesRes.data, notesRes.data);
       activityOffsetRef.current = activitiesRes.data.length;
       noteOffsetRef.current = notesRes.data.length;
-      timelineCache = merged;
-      timelineHasMoreCache = hasMoreFlag;
+
+      const userId = authClient.getUser()?.id || "anon";
+      userTimelineCaches.set(userId, { entries: merged, hasMore: hasMoreFlag });
+
       setTimelineEntries(merged);
       setHasMore(hasMoreFlag);
     } catch (err) {
@@ -78,13 +84,13 @@ export default function TimelinePage() {
         const existingIds = new Set(prev.map((e) => e.id));
         const filteredNew = newMerged.filter((e) => !existingIds.has(e.id));
         const updated = [...prev, ...filteredNew].sort(
-          (a, b) => new Date(b.consumedAt || 0).getTime() - new Date(a.consumedAt || 0).getTime(),
+          (a, b) => new Date(b.consumedAt || 0).getTime() - new Date(a.consumedAt || 0).getTime()
         );
-        timelineCache = updated;
+        const userId = authClient.getUser()?.id || "anon";
+        userTimelineCaches.set(userId, { entries: updated, hasMore: hasMoreFlag });
         return updated;
       });
 
-      timelineHasMoreCache = hasMoreFlag;
       setHasMore(hasMoreFlag);
     } catch (err) {
       console.warn("Could not fetch more timeline items:", err);
@@ -97,20 +103,34 @@ export default function TimelinePage() {
   useEffect(() => {
     loadTimeline();
 
-    // Auto background refresh every 15 seconds to fetch remote activity updates
     const interval = setInterval(() => {
       loadTimeline();
     }, 15000);
 
     function handleActivityLogged() {
-      // Invalidate in-memory cache and re-fetch clean timeline dataset from backend
-      timelineCache = null;
+      const userId = authClient.getUser()?.id || "anon";
+      userTimelineCaches.delete(userId);
       loadTimeline();
     }
+
+    const authSub = authClient.onAuthStateChange((user) => {
+      const nextId = user?.id || "anon";
+      const cached = userTimelineCaches.get(nextId);
+      if (cached) {
+        setTimelineEntries(cached.entries);
+        setHasMore(cached.hasMore);
+        setLoading(false);
+      } else {
+        setTimelineEntries([]);
+        setLoading(true);
+      }
+      loadTimeline();
+    });
 
     window.addEventListener("activity-logged", handleActivityLogged);
     return () => {
       clearInterval(interval);
+      authSub.unsubscribe();
       window.removeEventListener("activity-logged", handleActivityLogged);
     };
   }, [loadTimeline]);
@@ -155,7 +175,6 @@ export default function TimelinePage() {
             <RotateCw className={`w-4 h-4 ${refreshing ? "animate-spin text-charcoal" : ""}`} />
           </button>
           <div className="flex items-center gap-2">
-            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-charcoal-muted" />}
             <span className="text-xs text-charcoal-muted font-mono font-medium uppercase tracking-wider">
               {filteredEntries.length} {filteredEntries.length === 1 ? "LOG" : "LOGS"}
             </span>
@@ -164,7 +183,7 @@ export default function TimelinePage() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex flex-wrap items-center gap-2 pb-2" role="group" aria-label="Timeline filters">
+      <div className="flex flex-wrap items-center gap-2 pb-2" role="group" aria-label="Timeline category filters">
         {timelineFilters.map((filter) => {
           const isActive = activeFilter === filter;
           return (
@@ -188,30 +207,33 @@ export default function TimelinePage() {
       {/* Timeline Stream */}
       <div className="space-y-8">
         {errorMessage && (
-          <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+          >
             <span>{errorMessage}</span>
-            <button type="button" onClick={() => loadTimeline(true)} className="shrink-0 min-h-10 rounded-full border border-red-300 px-4 py-2 text-xs font-medium hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">Retry</button>
+            <button
+              type="button"
+              onClick={() => loadTimeline(true)}
+              className="shrink-0 min-h-10 rounded-full border border-red-300 px-4 py-2 text-xs font-medium hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+            >
+              Retry
+            </button>
           </div>
         )}
-        <AnimatePresence mode="popLayout">
-          {loading ? (
-            <div className="flex items-center justify-center py-16 text-charcoal-muted text-sm gap-2">
-              <Loader2 className="w-5 h-5 animate-spin text-charcoal" />
-              <span>Building your learning timeline...</span>
-            </div>
-          ) : errorMessage ? null : Object.keys(groupedEntries).length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="py-12 text-center text-charcoal-muted font-sans text-sm"
-            >
-              No timeline entries found {activeFilter !== "All" ? `for category "${activeFilter}"` : ""}.
-            </motion.div>
-          ) : (
-            Object.entries(groupedEntries).map(([dateGroup, items]) => (
+
+        {loading && timelineEntries.length === 0 ? (
+          <TimelineSkeleton />
+        ) : Object.keys(groupedEntries).length === 0 && !errorMessage ? (
+          <div className="py-12 text-center text-charcoal-muted font-sans text-sm">
+            No timeline entries found {activeFilter !== "All" ? `for category "${activeFilter}"` : ""}.
+          </div>
+        ) : (
+          <AnimatePresence mode="popLayout">
+            {Object.entries(groupedEntries).map(([dateGroup, items]) => (
               <div key={dateGroup} className="space-y-4">
-                {/* Date Header */}
+                {/* Sticky Date Header */}
                 <div className="sticky top-16 z-10 bg-canvas/90 backdrop-blur-sm py-2">
                   <h3 className="text-xs font-mono font-semibold uppercase tracking-widest text-charcoal-muted flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-charcoal/40" />
@@ -225,7 +247,7 @@ export default function TimelinePage() {
                     <motion.div
                       key={item.id}
                       layout
-                      initial={{ opacity: 0, y: 12 }}
+                      initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.98 }}
                       transition={{ duration: 0.2 }}
@@ -254,7 +276,7 @@ export default function TimelinePage() {
                               href={item.link}
                               target="_blank"
                               rel="noreferrer"
-                              aria-label={`Open ${item.title} in a new tab`}
+                              aria-label={`Open resource for ${item.title} in a new tab`}
                               className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-charcoal-muted hover:text-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal"
                             >
                               <ExternalLink className="w-4 h-4 text-charcoal-muted opacity-60 group-hover:opacity-100 transition-opacity" />
@@ -262,17 +284,19 @@ export default function TimelinePage() {
                           )}
                         </h4>
 
-                        <p className="text-sm text-charcoal-muted leading-relaxed">
-                          {item.summary}
-                        </p>
+                        {item.summary && (
+                          <p className="text-sm text-charcoal-muted leading-relaxed">
+                            {item.summary}
+                          </p>
+                        )}
                       </div>
                     </motion.div>
                   ))}
                 </div>
               </div>
-            ))
-          )}
-        </AnimatePresence>
+            ))}
+          </AnimatePresence>
+        )}
 
         {/* Load More Pagination Button */}
         {hasMore && (

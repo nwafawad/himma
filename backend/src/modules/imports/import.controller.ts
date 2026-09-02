@@ -88,12 +88,13 @@ export const getPendingCandidates = async (req: Request, res: Response, next: Ne
  */
 export const confirmCandidates = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user!.id;
-  const { approvedCandidateIds, excludedCandidateIds } = req.body;
+  const { approvedCandidateIds, excludedCandidateIds, overrides } = req.body;
   try {
     const result = await importService.confirmImportCandidates(
       userId,
       approvedCandidateIds,
-      excludedCandidateIds || []
+      excludedCandidateIds || [],
+      overrides || []
     );
 
     return res.status(201).json({

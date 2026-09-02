@@ -20,9 +20,16 @@ export const browserHistoryItemSchema = z.object({
 
 export const browserHistoryExportSchema = z.array(browserHistoryItemSchema);
 
+export const candidateOverrideSchema = z.object({
+  id: uuidSchema,
+  title: z.string().min(1, 'Title cannot be empty').optional(),
+  type: activityTypeSchema.optional(),
+});
+
 export const confirmImportInputSchema = z.object({
   approvedCandidateIds: z.array(uuidSchema).min(1, 'At least one candidate ID must be approved'),
-  excludedCandidateIds: z.array(uuidSchema).optional().default([]),
+  excludedCandidateIds: z.array(uuidSchema).optional(),
+  overrides: z.array(candidateOverrideSchema).optional(),
 });
 
 export const importCandidateSchema = z.object({
@@ -54,6 +61,7 @@ export const pendingCandidatesResponseSchema = z.object({
 });
 
 export type ImportUrlsInput = z.infer<typeof importUrlsInputSchema>;
+export type CandidateOverride = z.infer<typeof candidateOverrideSchema>;
 export type ConfirmImportInput = z.infer<typeof confirmImportInputSchema>;
 export type ImportCandidate = z.infer<typeof importCandidateSchema>;
 export type ImportStats = z.infer<typeof importStatsSchema>;

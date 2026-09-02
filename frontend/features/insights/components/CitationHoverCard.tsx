@@ -1,6 +1,6 @@
 "use client";
 
-import * as Popover from "@radix-ui/react-popover";
+import * as HoverCard from "@radix-ui/react-hover-card";
 import { Book, ArrowRight } from "lucide-react";
 
 interface CitationProps {
@@ -21,20 +21,20 @@ export default function CitationHoverCard({
   url,
 }: CitationProps) {
   return (
-    <Popover.Root>
-      <Popover.Trigger asChild>
+    <HoverCard.Root openDelay={120} closeDelay={180}>
+      <HoverCard.Trigger asChild>
         <button
           type="button"
           aria-label={`View citation details for ${keyword}`}
-          className="inline-block text-[#A5B4FC] underline decoration-indigo-400/50 underline-offset-4 hover:decoration-indigo-300 hover:text-white cursor-pointer font-medium transition-colors px-1 rounded bg-[#2D2B55]/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+          className="inline-block text-[#A5B4FC] underline decoration-indigo-400/50 underline-offset-4 hover:decoration-indigo-300 hover:text-white cursor-pointer font-medium transition-colors px-1.5 py-0.5 rounded bg-[#2D2B55]/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 text-xs"
         >
           {keyword}
         </button>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          className="w-[min(20rem,calc(100vw-2rem))] bg-card p-4 rounded-xl shadow-xl border border-border-light z-50 animate-fade-in focus:outline-none"
-          sideOffset={5}
+      </HoverCard.Trigger>
+      <HoverCard.Portal>
+        <HoverCard.Content
+          className="w-[min(20rem,calc(100vw-2rem))] bg-card p-4 rounded-xl shadow-2xl border border-border-light z-50 animate-fade-in focus:outline-none"
+          sideOffset={6}
         >
           <div className="flex items-center justify-between text-[10px] text-charcoal-muted uppercase tracking-wider mb-2">
             <span className="flex items-center gap-1 font-semibold text-indigo-600">
@@ -55,7 +55,7 @@ export default function CitationHoverCard({
                 href={url}
                 target="_blank"
                 rel="noreferrer"
-                className="min-h-9 text-xs font-medium text-charcoal flex items-center gap-1 hover:underline cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal rounded-md"
+                className="min-h-8 text-xs font-medium text-charcoal flex items-center gap-1 hover:underline cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal rounded-md"
               >
                 View Resource <ArrowRight className="w-3 h-3" />
               </a>
@@ -65,9 +65,9 @@ export default function CitationHoverCard({
               </span>
             )}
           </div>
-          <Popover.Arrow className="fill-white" />
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+          <HoverCard.Arrow className="fill-white" />
+        </HoverCard.Content>
+      </HoverCard.Portal>
+    </HoverCard.Root>
   );
 }

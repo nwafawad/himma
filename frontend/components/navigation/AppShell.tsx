@@ -12,9 +12,34 @@ import ImportModal from "@/features/import/components/ImportModal";
 import PageTransition from "@/components/ui/PageTransition";
 import QuickCaptureModal from "@/features/activities/components/QuickCaptureModal";
 import { authClient, type AuthUser } from "@/lib/authClient";
+import { ToastProvider, useToast } from "@/components/ui/Toast";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
 
 interface AppShellProps {
   children: React.ReactNode;
+}
+
+function OfflineSyncHandler({ userId }: { userId: string | null }) {
+  const { syncDrafts } = useOfflineSync(userId);
+  const toast = useToast();
+
+  useEffect(() => {
+    const handleSyncEvent = (e: Event) => {
+      const custom = e as CustomEvent<{ count: number }>;
+      const count = custom.detail?.count || 1;
+      toast.success(
+        "Offline Sync Completed",
+        `Uploaded ${count} pending learning log${count === 1 ? "" : "s"} to your account.`
+      );
+    };
+
+    window.addEventListener("offline-sync-completed", handleSyncEvent);
+    return () => {
+      window.removeEventListener("offline-sync-completed", handleSyncEvent);
+    };
+  }, [toast]);
+
+  return null;
 }
 
 export default function AppShell({ children }: AppShellProps) {
@@ -46,32 +71,35 @@ export default function AppShell({ children }: AppShellProps) {
   const isResolvingProtectedRoute = !authReady || !user;
 
   return (
-    <MotionConfig reducedMotion="user">
-      <Header showAppNavigation={showAuthenticatedShell} />
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 sm:pb-8">
-        {isResolvingProtectedRoute ? (
-          <div
-            className="min-h-[60vh] flex items-center justify-center gap-2 text-sm text-charcoal-muted"
-            role="status"
-            aria-live="polite"
-          >
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            <span>Opening your journal…</span>
-          </div>
-        ) : (
-          <PageTransition>{children}</PageTransition>
-        )}
-      </main>
+    <ToastProvider>
+      <MotionConfig reducedMotion="user">
+        <Header showAppNavigation={showAuthenticatedShell} />
+        <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 sm:pb-8">
+          {isResolvingProtectedRoute ? (
+            <div
+              className="min-h-[60vh] flex items-center justify-center gap-2 text-sm text-charcoal-muted"
+              role="status"
+              aria-live="polite"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              <span>Opening your journal…</span>
+            </div>
+          ) : (
+            <PageTransition>{children}</PageTransition>
+          )}
+        </main>
 
-      {showAuthenticatedShell && (
-        <>
-          <QuickCaptureModal />
-          <ImportModal />
-          <FloatingLogButton />
-          <InstallPromptBanner />
-          <MobileBottomNav />
-        </>
-      )}
-    </MotionConfig>
+        {showAuthenticatedShell && (
+          <>
+            <OfflineSyncHandler userId={user?.id || null} />
+            <QuickCaptureModal />
+            <ImportModal />
+            <FloatingLogButton />
+            <InstallPromptBanner />
+            <MobileBottomNav />
+          </>
+        )}
+      </MotionConfig>
+    </ToastProvider>
   );
 }

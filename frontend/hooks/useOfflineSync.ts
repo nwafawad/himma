@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchApi } from "@/lib/api";
+import { authClient } from "@/lib/authClient";
 
 export interface OfflineCaptureDraft {
   id: string;
   title: string;
+  url?: string;
   type: "note" | "url";
   content: string;
   category: string;
@@ -18,11 +20,32 @@ export type NewOfflineCaptureDraft = Omit<
   "id" | "timestamp"
 >;
 
-const STORAGE_KEY = "momentum_offline_drafts";
+function getStorageKey(userId?: string | null): string {
+  const effectiveId = userId ?? authClient.getUser()?.id;
+  return effectiveId
+    ? `momentum_offline_drafts_${effectiveId}`
+    : "momentum_offline_drafts_anon";
+}
 
-function readStoredDrafts(): OfflineCaptureDraft[] {
+function readStoredDrafts(userId?: string | null): OfflineCaptureDraft[] {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const key = getStorageKey(userId);
+    let stored = localStorage.getItem(key);
+
+    // One-time fallback migration from legacy un-scoped key
+    if (!stored) {
+      const legacy = localStorage.getItem("momentum_offline_drafts");
+      if (legacy) {
+        stored = legacy;
+        try {
+          localStorage.setItem(key, legacy);
+          localStorage.removeItem("momentum_offline_drafts");
+        } catch {
+          // ignore storage error
+        }
+      }
+    }
+
     if (!stored) return [];
 
     const parsed = JSON.parse(stored);
@@ -34,6 +57,7 @@ function readStoredDrafts(): OfflineCaptureDraft[] {
           return {
             id: String(draft.id),
             title: draft.title,
+            url: typeof draft.url === "string" ? draft.url : undefined,
             type: draft.type === "url" ? "url" : "note",
             content: typeof draft.content === "string" ? draft.content : "",
             category:
@@ -51,7 +75,6 @@ function readStoredDrafts(): OfflineCaptureDraft[] {
           };
         }
 
-        // Preserve drafts created by the earlier offline prototype.
         if (typeof draft?.topic === "string") {
           return {
             id: String(draft.id),
@@ -73,11 +96,12 @@ function readStoredDrafts(): OfflineCaptureDraft[] {
   }
 }
 
-function persistDrafts(drafts: OfflineCaptureDraft[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(drafts));
+function persistDrafts(drafts: OfflineCaptureDraft[], userId?: string | null) {
+  const key = getStorageKey(userId);
+  localStorage.setItem(key, JSON.stringify(drafts));
 }
 
-export function useOfflineSync() {
+export function useOfflineSync(explicitUserId?: string | null) {
   const [isOnline, setIsOnline] = useState(true);
   const [pendingDrafts, setPendingDrafts] = useState<OfflineCaptureDraft[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -85,35 +109,39 @@ export function useOfflineSync() {
   const syncInFlight = useRef(false);
 
   const loadDrafts = useCallback(() => {
-    const drafts = readStoredDrafts();
+    const drafts = readStoredDrafts(explicitUserId);
     setPendingDrafts(drafts);
     return drafts;
-  }, []);
+  }, [explicitUserId]);
 
-  const saveOfflineDraft = useCallback((draft: NewOfflineCaptureDraft) => {
-    const newDraft: OfflineCaptureDraft = {
-      ...draft,
-      id: `offline_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      timestamp: Date.now(),
-    };
+  const saveOfflineDraft = useCallback(
+    (draft: NewOfflineCaptureDraft) => {
+      const newDraft: OfflineCaptureDraft = {
+        ...draft,
+        id: `offline_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        timestamp: Date.now(),
+      };
 
-    try {
-      const updated = [newDraft, ...readStoredDrafts()];
-      persistDrafts(updated);
-      setPendingDrafts(updated);
-      setSyncError(null);
-      return newDraft;
-    } catch (error) {
-      console.error("Failed to save offline draft:", error);
-      setSyncError("This entry could not be saved on this device.");
-      return null;
-    }
-  }, []);
+      try {
+        const current = readStoredDrafts(explicitUserId);
+        const updated = [newDraft, ...current];
+        persistDrafts(updated, explicitUserId);
+        setPendingDrafts(updated);
+        setSyncError(null);
+        return newDraft;
+      } catch (error) {
+        console.error("Failed to save offline draft:", error);
+        setSyncError("This entry could not be saved on this device.");
+        return null;
+      }
+    },
+    [explicitUserId]
+  );
 
   const syncDrafts = useCallback(async () => {
     if (syncInFlight.current || !navigator.onLine) return 0;
 
-    const drafts = readStoredDrafts();
+    const drafts = readStoredDrafts(explicitUserId);
     if (drafts.length === 0) {
       setPendingDrafts([]);
       return 0;
@@ -130,29 +158,31 @@ export function useOfflineSync() {
         let activityId = draft.activityId;
 
         if (activityId === undefined) {
+          const actType = draft.type === "url" ? "article" : "other";
+          const resolvedUrl =
+            draft.url ||
+            (draft.type === "url" && draft.title.startsWith("http")
+              ? draft.title
+              : undefined);
+
           const activity = await fetchApi<{ data?: { id?: string } }>(
             "/activities",
             {
               method: "POST",
               body: JSON.stringify({
                 title: draft.title.trim(),
-                type: draft.type === "url" ? "article" : "other",
+                type: actType,
                 source: "manual",
-                url:
-                  draft.type === "url" && draft.title.startsWith("http")
-                    ? draft.title
-                    : undefined,
+                url: resolvedUrl,
                 tags: [draft.category.toLowerCase()],
               }),
-            },
+            }
           );
 
           activityId = activity?.data?.id || null;
           draft.activityId = activityId;
 
-          // Persist the completed activity stage before attempting its note so
-          // a note retry cannot create a duplicate activity.
-          persistDrafts(drafts);
+          persistDrafts(drafts, explicitUserId);
           setPendingDrafts([...drafts]);
         }
 
@@ -176,14 +206,19 @@ export function useOfflineSync() {
     const remaining = drafts.filter((draft) => !successfulIds.has(draft.id));
 
     try {
-      persistDrafts(remaining);
+      persistDrafts(remaining, explicitUserId);
       setPendingDrafts(remaining);
       if (successfulIds.size > 0) {
         window.dispatchEvent(new CustomEvent("activity-logged"));
+        window.dispatchEvent(
+          new CustomEvent("offline-sync-completed", {
+            detail: { count: successfulIds.size },
+          })
+        );
       }
       if (remaining.length > 0) {
         setSyncError(
-          `${remaining.length} ${remaining.length === 1 ? "entry is" : "entries are"} still waiting to sync.`,
+          `${remaining.length} ${remaining.length === 1 ? "entry is" : "entries are"} still waiting to sync.`
         );
       }
     } finally {
@@ -192,10 +227,10 @@ export function useOfflineSync() {
     }
 
     return successfulIds.size;
-  }, []);
+  }, [explicitUserId]);
 
   useEffect(() => {
-    const onlineNow = navigator.onLine;
+    const onlineNow = typeof navigator !== "undefined" ? navigator.onLine : true;
     setIsOnline(onlineNow);
     loadDrafts();
 
@@ -213,9 +248,14 @@ export function useOfflineSync() {
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
+    const unsubscribe = authClient.onAuthStateChange(() => {
+      loadDrafts();
+    });
+
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      unsubscribe.unsubscribe();
     };
   }, [loadDrafts, syncDrafts]);
 
